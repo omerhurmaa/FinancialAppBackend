@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/omer/Desktop/MyBackendApp/MyBackendApp.csproj": {}
+    "/Users/omer/Desktop/FinancialAppBackend/MyBackendApp/MyBackendApp.csproj": {}
   },
   "projects": {
-    "/Users/omer/Desktop/MyBackendApp/MyBackendApp.csproj": {
+    "/Users/omer/Desktop/FinancialAppBackend/MyBackendApp/MyBackendApp.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/omer/Desktop/MyBackendApp/MyBackendApp.csproj",
+        "projectUniqueName": "/Users/omer/Desktop/FinancialAppBackend/MyBackendApp/MyBackendApp.csproj",
         "projectName": "MyBackendApp",
-        "projectPath": "/Users/omer/Desktop/MyBackendApp/MyBackendApp.csproj",
+        "projectPath": "/Users/omer/Desktop/FinancialAppBackend/MyBackendApp/MyBackendApp.csproj",
         "packagesPath": "/Users/omer/.nuget/packages/",
-        "outputPath": "/Users/omer/Desktop/MyBackendApp/obj/",
+        "outputPath": "/Users/omer/Desktop/FinancialAppBackend/MyBackendApp/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/omer/.nuget/NuGet/NuGet.Config"

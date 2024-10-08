@@ -32,7 +32,7 @@ public async Task<IActionResult> Register(User user)
     await _context.SaveChangesAsync();
 
     // Parola bilgisini döndürmeyin
-    user.Password = null;
+    user.Password = null!;
 
     var userDto = new UserDto
     {
@@ -56,7 +56,7 @@ public async Task<IActionResult> Login([FromBody] User loginUser)
     }
 
     // 
-    user.Password = null;
+    user.Password = null!;
 
     var userDto = new UserDto
     {
