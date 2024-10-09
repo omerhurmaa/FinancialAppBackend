@@ -5,9 +5,9 @@ namespace MyBackendApp.Models
         public int Id { get; set; }
         public required string Username { get; set; }
         public string? Email { get; set; }
-        public DateTime CreDate  { get; set;} 
-        public DateOnly BDate { get; set;}
         public string? Token { get; set; }
-        // Diğer gerekli alanlar
+        public DateTime CreDate { get; set; }
+        public DateOnly BDate { get; set; }
+        public bool IsVerified { get; set; }
     }
 }

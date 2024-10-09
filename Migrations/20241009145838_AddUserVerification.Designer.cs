@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyBackendApp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20241009094540_FINANCIALAPP")]
-    partial class FINANCIALAPP
+    [Migration("20241009145838_AddUserVerification")]
+    partial class AddUserVerification
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,42 @@ namespace MyBackendApp.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("MyBackendApp.Models.PendingUser", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("BDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("CreDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Password")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("VerificationCode")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("VerificationCodeGeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PendingUsers");
+                });
 
             modelBuilder.Entity("MyBackendApp.Models.User", b =>
                 {
@@ -41,6 +77,9 @@ namespace MyBackendApp.Migrations
 
                     b.Property<string>("Email")
                         .HasColumnType("text");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Password")
                         .IsRequired()
