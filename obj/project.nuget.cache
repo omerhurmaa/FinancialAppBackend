@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "POgq63rg800=",
+  "dgSpecHash": "QEPIonwyD7k=",
   "success": true,
-  "projectFilePath": "/Users/omer/Desktop/FinancialAppBackend/MyBackendApp/MyBackendApp.csproj",
+  "projectFilePath": "/Users/omer/Desktop/FinancialAppBackend/MyBackendApp.csproj",
   "expectedPackageFiles": [
     "/Users/omer/.nuget/packages/bcrypt.net-next/4.0.3/bcrypt.net-next.4.0.3.nupkg.sha512",
     "/Users/omer/.nuget/packages/humanizer.core/2.14.1/humanizer.core.2.14.1.nupkg.sha512",
