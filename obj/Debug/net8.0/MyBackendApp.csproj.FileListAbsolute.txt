@@ -211,3 +211,11 @@
 /Users/omer/Desktop/FinancialAppBackend/obj/Debug/net8.0/MyBackendApp.pdb
 /Users/omer/Desktop/FinancialAppBackend/obj/Debug/net8.0/MyBackendApp.genruntimeconfig.cache
 /Users/omer/Desktop/FinancialAppBackend/obj/Debug/net8.0/ref/MyBackendApp.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/Microsoft.IdentityModel.Abstractions.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/Microsoft.IdentityModel.Logging.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/Microsoft.IdentityModel.Protocols.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/Microsoft.IdentityModel.Tokens.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/System.IdentityModel.Tokens.Jwt.dll

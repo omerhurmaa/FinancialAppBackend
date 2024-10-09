@@ -7,7 +7,7 @@ namespace MyBackendApp.Models
         public string? Email { get; set; }
         public DateTime CreDate  { get; set;} 
         public DateOnly BDate { get; set;}
-        
+        public string? Token { get; set; }
         // Diğer gerekli alanlar
     }
 }
