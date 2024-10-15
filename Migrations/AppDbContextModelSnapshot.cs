@@ -78,6 +78,9 @@ namespace MyBackendApp.Migrations
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime>("LastSignIn")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Password")
                         .IsRequired()
                         .HasColumnType("text");

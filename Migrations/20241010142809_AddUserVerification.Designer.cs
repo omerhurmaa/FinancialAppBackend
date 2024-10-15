@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyBackendApp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20241009145838_AddUserVerification")]
+    [Migration("20241010142809_AddUserVerification")]
     partial class AddUserVerification
     {
         /// <inheritdoc />
@@ -80,6 +80,9 @@ namespace MyBackendApp.Migrations
 
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime>("LastSignIn")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Password")
                         .IsRequired()

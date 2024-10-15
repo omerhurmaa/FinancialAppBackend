@@ -42,7 +42,8 @@ namespace MyBackendApp.Migrations
                     Password = table.Column<string>(type: "text", nullable: false),
                     BDate = table.Column<DateOnly>(type: "date", nullable: false),
                     CreDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    IsVerified = table.Column<bool>(type: "boolean", nullable: false)
+                    IsVerified = table.Column<bool>(type: "boolean", nullable: false),
+                    LastSignIn = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {

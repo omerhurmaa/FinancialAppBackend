@@ -20,6 +20,9 @@ namespace MyBackendApp.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<AccountController> _logger;
 
+        private const string VerificationTemplate = "VerificationEmail.html";
+        private const string MembershipApprovedTemplate = "MembershipApprovedEmail.html";
+
         public AccountController(AppDbContext context, IConfiguration configuration, ILogger<AccountController> logger)
         {
             _context = context;
@@ -35,13 +38,13 @@ namespace MyBackendApp.Controllers
         }
 
         // HTML e-posta gövdesini oluşturma metodu
-        private string GetEmailBody(string username, string verificationCode)
+        private string GetEmailBody(string templateName, string username, string verificationCode = "")
         {
-            string templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "VerificationEmail.html");
+            string templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", templateName);
 
             if (!System.IO.File.Exists(templatePath))
             {
-                throw new Exception("E-posta şablonu bulunamadı.");
+                throw new Exception($"E-posta şablonu bulunamadı: {templateName}");
             }
 
             string emailTemplate = System.IO.File.ReadAllText(templatePath);
@@ -74,8 +77,8 @@ namespace MyBackendApp.Controllers
             return tokenHandler.WriteToken(token);
         }
 
-        // E-posta gönderme metodu
-        private async Task SendVerificationEmail(string email, string verificationCode, string username)
+        // Ortak e-posta gönderim metodu
+        private async Task SendEmailAsync(string toEmail, string toName, string subject, string htmlBody)
         {
             var smtpSettings = _configuration.GetSection("SmtpSettings").Get<SmtpSettings>();
 
@@ -96,28 +99,43 @@ namespace MyBackendApp.Controllers
                 throw new Exception("SMTP ayarlarında gerekli alanlardan biri eksik.");
             }
 
-            var smtpClient = new SmtpClient(smtpSettings.Server)
+            using var smtpClient = new SmtpClient(smtpSettings.Server)
             {
                 Port = smtpSettings.Port,
                 Credentials = new NetworkCredential(smtpSettings.Username, smtpSettings.Password),
                 EnableSsl = smtpSettings.EnableSsl,
             };
 
-            // E-posta gövdesini HTML olarak ayarlayın
-            string htmlBody = GetEmailBody(username, verificationCode);
-
             var mailMessage = new MailMessage
             {
                 From = new MailAddress(smtpSettings.SenderEmail, smtpSettings.SenderName),
-                Subject = "Hesap Doğrulama",
+                Subject = subject,
                 Body = htmlBody,
                 IsBodyHtml = true, // HTML olarak işaretleyin
             };
-            mailMessage.To.Add(email);
+            mailMessage.To.Add(new MailAddress(toEmail, toName));
 
-            _logger.LogInformation($"E-posta gönderimi başlıyor: {email}");
+            _logger.LogInformation($"E-posta gönderimi başlıyor: {toEmail}");
             await smtpClient.SendMailAsync(mailMessage);
             _logger.LogInformation("E-posta başarıyla gönderildi.");
+        }
+
+        // Doğrulama e-postası gönderme metodu
+        private async Task SendVerificationEmail(string email, string verificationCode, string username)
+        {
+            string htmlBody = GetEmailBody(VerificationTemplate, username, verificationCode);
+            string subject = "Hesap Doğrulama";
+
+            await SendEmailAsync(email, username, subject, htmlBody);
+        }
+
+        // Üyelik başarı e-postası gönderme metodu
+        private async Task SendSuccessVerificationEmail(string email, string username)
+        {
+            string htmlBody = GetEmailBody(MembershipApprovedTemplate, username);
+            string subject = "Hesap Doğrulama Tamamlandı";
+
+            await SendEmailAsync(email, username, subject, htmlBody);
         }
 
         // Kayıt metodu
@@ -151,7 +169,7 @@ namespace MyBackendApp.Controllers
                 {
                     // Kullanıcı doğrulanmamış, doğrulama kodunu yeniden gönder
                     var pendingUser = await _context.PendingUsers.FirstOrDefaultAsync(u => u.Email == user.Email);
-                    
+
                     if (pendingUser != null)
                     {
                         pendingUser.VerificationCode = GenerateVerificationCode();
@@ -261,12 +279,16 @@ namespace MyBackendApp.Controllers
                 Password = pendingUser.Password,
                 BDate = pendingUser.BDate,
                 CreDate = pendingUser.CreDate,
-                IsVerified = true
+                IsVerified = true,
+                LastSignIn = DateTime.UtcNow
             };
 
             _context.Users.Add(newUser);
             _context.PendingUsers.Remove(pendingUser);
             await _context.SaveChangesAsync();
+
+            // Kullanıcıya doğrulama başarıyla tamamlandı e-postası gönder
+            await SendSuccessVerificationEmail(newUser.Email!, newUser.Username);
 
             // JWT oluştur
             var tokenString = GenerateJwtToken(newUser);
@@ -287,46 +309,54 @@ namespace MyBackendApp.Controllers
         }
 
         // Giriş metodu
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] User loginUser)
-        {
-            // Kullanıcı adı ve şifre boş mu kontrol edin
-            if (string.IsNullOrWhiteSpace(loginUser.Username) || string.IsNullOrWhiteSpace(loginUser.Password))
-            {
-                return BadRequest("Kullanıcı adı ve şifre doldurulması zorunludur.");
-            }
+        // Giriş metodu
+[HttpPost("login")]
+public async Task<IActionResult> Login([FromBody] User loginUser)
+{
+    // Kullanıcı adı ve şifre boş mu kontrol edin
+    if (string.IsNullOrWhiteSpace(loginUser.Username) || string.IsNullOrWhiteSpace(loginUser.Password))
+    {
+        return BadRequest("Kullanıcı adı ve şifre doldurulması zorunludur.");
+    }
 
-            // Kullanıcıyı User tablosundan bulun
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
+    // Kullanıcıyı User tablosundan bulun
+    var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
+    var puser = await _context.PendingUsers.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
 
-            // Kullanıcı mevcut mu ve şifre doğru mu kontrol edin
-            if (user == null || !BCrypt.Net.BCrypt.Verify(loginUser.Password, user.Password))
-            {
-                return Unauthorized("Geçersiz kullanıcı adı veya şifre.");
-            }
+    // Kullanıcı doğrulanmış mı kontrol edin
+    if (puser != null)
+    {
+        return Unauthorized("Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin.");
+    }
 
-            // Kullanıcı doğrulanmış mı kontrol edin
-            if (!user.IsVerified)
-            {   
-                
-                return Unauthorized("Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin.");
-            }
+    // Kullanıcı mevcut mu ve şifre doğru mu kontrol edin
+    if (user == null || !BCrypt.Net.BCrypt.Verify(loginUser.Password, user.Password))
+    {
+        return Unauthorized("Geçersiz kullanıcı adı veya şifre.");
+    }
 
-            // JWT oluştur
-            var tokenString = GenerateJwtToken(user);
+    // Giriş başarılı, LastSignIn'i güncelle
+    user.LastSignIn = DateTime.UtcNow;
+    _context.Users.Update(user);
+    await _context.SaveChangesAsync();
 
-            // Kullanıcı bilgilerini ve token'ı döndür
-            var userDto = new UserDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                Token = tokenString,
-                CreDate = user.CreDate,
-                BDate = user.BDate
-            };
+    // JWT oluştur
+    var tokenString = GenerateJwtToken(user);
 
-            return Ok(userDto);
-        }
+    // Kullanıcı bilgilerini ve token'ı döndür
+    var userDto = new UserDto
+    {
+        Id = user.Id,
+        Username = user.Username,
+        Email = user.Email,
+        Token = tokenString,
+        CreDate = user.CreDate,
+        BDate = user.BDate,
+        IsVerified = user.IsVerified
+    };
+
+    return Ok(userDto);
+}
+
     }
 }
