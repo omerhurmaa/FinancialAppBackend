@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyBackendApp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20241010142809_AddUserVerification")]
+    [Migration("20241015153007_AddUserVerification")]
     partial class AddUserVerification
     {
         /// <inheritdoc />
@@ -61,6 +61,50 @@ namespace MyBackendApp.Migrations
                     b.ToTable("PendingUsers");
                 });
 
+            modelBuilder.Entity("MyBackendApp.Models.Stock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsVisible")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastPriceRequestDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("PurchaseDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("PurchasePrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("SalePrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Symbol")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Stocks");
+                });
+
             modelBuilder.Entity("MyBackendApp.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -95,6 +139,22 @@ namespace MyBackendApp.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("MyBackendApp.Models.Stock", b =>
+                {
+                    b.HasOne("MyBackendApp.Models.User", "Owner")
+                        .WithMany("Stocks")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("MyBackendApp.Models.User", b =>
+                {
+                    b.Navigation("Stocks");
                 });
 #pragma warning restore 612, 618
         }

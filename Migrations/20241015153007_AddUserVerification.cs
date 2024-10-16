@@ -49,6 +49,38 @@ namespace MyBackendApp.Migrations
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
                 });
+
+            migrationBuilder.CreateTable(
+                name: "Stocks",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    PurchaseDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    Quantity = table.Column<int>(type: "integer", nullable: false),
+                    Symbol = table.Column<string>(type: "text", nullable: false),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    PurchasePrice = table.Column<decimal>(type: "numeric", nullable: false),
+                    SalePrice = table.Column<decimal>(type: "numeric", nullable: true),
+                    IsVisible = table.Column<bool>(type: "boolean", nullable: false),
+                    LastPriceRequestDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UserId = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Stocks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Stocks_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Stocks_UserId",
+                table: "Stocks",
+                column: "UserId");
         }
 
         /// <inheritdoc />
@@ -56,6 +88,9 @@ namespace MyBackendApp.Migrations
         {
             migrationBuilder.DropTable(
                 name: "PendingUsers");
+
+            migrationBuilder.DropTable(
+                name: "Stocks");
 
             migrationBuilder.DropTable(
                 name: "Users");

@@ -10,5 +10,7 @@ namespace MyBackendApp.Models
         public DateTime CreDate { get; set; }  //oluşturulma datetime
         public bool IsVerified { get; set; } //onay
         public DateTime LastSignIn { get; set;} //son başarılı g iriş
+
+        public ICollection<Stock> Stocks { get; set; } = new List<Stock>();
     }
 }

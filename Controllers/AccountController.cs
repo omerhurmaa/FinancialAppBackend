@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MyBackendApp.Data;
 using MyBackendApp.Models;
@@ -19,15 +20,17 @@ namespace MyBackendApp.Controllers
         private readonly AppDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<AccountController> _logger;
+        private readonly IOptions<SmtpSettings> _smtpSettings;
 
         private const string VerificationTemplate = "VerificationEmail.html";
         private const string MembershipApprovedTemplate = "MembershipApprovedEmail.html";
 
-        public AccountController(AppDbContext context, IConfiguration configuration, ILogger<AccountController> logger)
+        public AccountController(AppDbContext context, IConfiguration configuration, ILogger<AccountController> logger, IOptions<SmtpSettings> smtpSettings)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _smtpSettings = smtpSettings;
         }
 
         // Rastgele doğrulama kodu oluşturma metodu
@@ -80,35 +83,29 @@ namespace MyBackendApp.Controllers
         // Ortak e-posta gönderim metodu
         private async Task SendEmailAsync(string toEmail, string toName, string subject, string htmlBody)
         {
-            var smtpSettings = _configuration.GetSection("SmtpSettings").Get<SmtpSettings>();
-
-            if (smtpSettings == null)
-            {
-                _logger.LogError("SMTP ayarları yapılandırmada bulunamadı.");
-                throw new Exception("SMTP ayarları yapılandırmada bulunamadı.");
-            }
+            var smtp = _smtpSettings.Value;
 
             // SMTP ayarlarının tüm gerekli alanlarının dolu olduğunu kontrol edin
-            if (string.IsNullOrWhiteSpace(smtpSettings.Server) ||
-                string.IsNullOrWhiteSpace(smtpSettings.Username) ||
-                string.IsNullOrWhiteSpace(smtpSettings.Password) ||
-                string.IsNullOrWhiteSpace(smtpSettings.SenderEmail) ||
-                string.IsNullOrWhiteSpace(smtpSettings.SenderName))
+            if (string.IsNullOrWhiteSpace(smtp.Server) ||
+                string.IsNullOrWhiteSpace(smtp.Username) ||
+                string.IsNullOrWhiteSpace(smtp.Password) ||
+                string.IsNullOrWhiteSpace(smtp.SenderEmail) ||
+                string.IsNullOrWhiteSpace(smtp.SenderName))
             {
                 _logger.LogError("SMTP ayarlarında gerekli alanlardan biri eksik.");
                 throw new Exception("SMTP ayarlarında gerekli alanlardan biri eksik.");
             }
 
-            using var smtpClient = new SmtpClient(smtpSettings.Server)
+            using var smtpClient = new SmtpClient(smtp.Server)
             {
-                Port = smtpSettings.Port,
-                Credentials = new NetworkCredential(smtpSettings.Username, smtpSettings.Password),
-                EnableSsl = smtpSettings.EnableSsl,
+                Port = smtp.Port,
+                Credentials = new NetworkCredential(smtp.Username, smtp.Password),
+                EnableSsl = smtp.EnableSsl,
             };
 
             var mailMessage = new MailMessage
             {
-                From = new MailAddress(smtpSettings.SenderEmail, smtpSettings.SenderName),
+                From = new MailAddress(smtp.SenderEmail, smtp.SenderName),
                 Subject = subject,
                 Body = htmlBody,
                 IsBodyHtml = true, // HTML olarak işaretleyin
@@ -309,54 +306,71 @@ namespace MyBackendApp.Controllers
         }
 
         // Giriş metodu
-        // Giriş metodu
-[HttpPost("login")]
-public async Task<IActionResult> Login([FromBody] User loginUser)
-{
-    // Kullanıcı adı ve şifre boş mu kontrol edin
-    if (string.IsNullOrWhiteSpace(loginUser.Username) || string.IsNullOrWhiteSpace(loginUser.Password))
-    {
-        return BadRequest("Kullanıcı adı ve şifre doldurulması zorunludur.");
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] User loginUser)
+        {
+            // Kullanıcı adı ve şifre boş mu kontrol edin
+            if (string.IsNullOrWhiteSpace(loginUser.Username) || string.IsNullOrWhiteSpace(loginUser.Password))
+            {
+                return BadRequest("Kullanıcı adı ve şifre doldurulması zorunludur.");
+            }
+
+            // Kullanıcıyı User tablosundan bulun
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
+            var puser = await _context.PendingUsers.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
+            // Kullanıcı doğrulanmış mı kontrol edin
+            if (puser != null)
+            {
+                return Unauthorized("Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin.");
+            }
+
+            // Kullanıcı mevcut mu ve şifre doğru mu kontrol edin
+            if (user == null || !BCrypt.Net.BCrypt.Verify(loginUser.Password, user.Password))
+            {
+                return Unauthorized("Geçersiz kullanıcı adı veya şifre.");
+            }
+
+            user.LastSignIn = DateTime.UtcNow;
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+
+            // JWT oluştur
+            var tokenString = GenerateJwtToken(user);
+
+            // Kullanıcı bilgilerini ve token'ı döndür
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Token = tokenString,
+                CreDate = user.CreDate,
+                BDate = user.BDate
+            };
+
+            return Ok(userDto);
+        }
     }
 
-    // Kullanıcıyı User tablosundan bulun
-    var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
-    var puser = await _context.PendingUsers.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
-
-    // Kullanıcı doğrulanmış mı kontrol edin
-    if (puser != null)
+    // Models/UserDto.cs
+    namespace MyBackendApp.Models
     {
-        return Unauthorized("Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin.");
-    }
+        public class UserDto
+        {
+            public int Id { get; set; }
+            public required string Username { get; set; }
+            public string? Email { get; set; }
+            public string? Token { get; set; }
+            public DateOnly BDate { get; set; }
+            public DateTime CreDate { get; set; }
+            public bool IsVerified { get; set; }
+            public List<StockDto>? Stocks { get; set; } // Opsiyonel
+        }
 
-    // Kullanıcı mevcut mu ve şifre doğru mu kontrol edin
-    if (user == null || !BCrypt.Net.BCrypt.Verify(loginUser.Password, user.Password))
-    {
-        return Unauthorized("Geçersiz kullanıcı adı veya şifre.");
-    }
-
-    // Giriş başarılı, LastSignIn'i güncelle
-    user.LastSignIn = DateTime.UtcNow;
-    _context.Users.Update(user);
-    await _context.SaveChangesAsync();
-
-    // JWT oluştur
-    var tokenString = GenerateJwtToken(user);
-
-    // Kullanıcı bilgilerini ve token'ı döndür
-    var userDto = new UserDto
-    {
-        Id = user.Id,
-        Username = user.Username,
-        Email = user.Email,
-        Token = tokenString,
-        CreDate = user.CreDate,
-        BDate = user.BDate,
-        IsVerified = user.IsVerified
-    };
-
-    return Ok(userDto);
-}
-
+        public class VerificationDto
+        {
+            public string Email { get; set; } = string.Empty;
+            public string VerificationCode { get; set; } = string.Empty;
+        }
     }
 }

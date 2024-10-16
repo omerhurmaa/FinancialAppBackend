@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MyBackendApp.Data;
+using MyBackendApp.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -33,7 +34,26 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// HTTP client factory'ı ekleyin
+builder.Services.AddHttpClient();
+
+// SmtpSettings'i config olarak ekleyin
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
+
+// Controllers ekleyin
 builder.Services.AddControllers();
+
+// CORS politikalarını ekleyin (isteğe bağlı)
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        builder =>
+        {
+            builder.AllowAnyOrigin()
+                   .AllowAnyMethod()
+                   .AllowAnyHeader();
+        });
+});
 
 var app = builder.Build();
 
@@ -41,6 +61,9 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication(); // Kimlik doğrulama middleware'i eklendi
 app.UseAuthorization();
+
+// CORS'u kullan (isteğe bağlı)
+app.UseCors("AllowAll");
 
 app.MapControllers();
 
