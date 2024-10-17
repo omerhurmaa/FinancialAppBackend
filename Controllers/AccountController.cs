@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MyBackendApp.Data;
 using MyBackendApp.Models;
+using MyBackendApp.Dtos; // DTO namespace'i eklendi
 using System.IO;
 
 namespace MyBackendApp.Controllers
@@ -22,8 +23,11 @@ namespace MyBackendApp.Controllers
         private readonly ILogger<AccountController> _logger;
         private readonly IOptions<SmtpSettings> _smtpSettings;
 
+        // E-posta şablon dosya adları
         private const string VerificationTemplate = "VerificationEmail.html";
         private const string MembershipApprovedTemplate = "MembershipApprovedEmail.html";
+        private const string PasswordResetTemplate = "PasswordResetEmail.html";
+        private const string PasswordResetSuccessTemplate = "PasswordResetSuccess.html";
 
         public AccountController(AppDbContext context, IConfiguration configuration, ILogger<AccountController> logger, IOptions<SmtpSettings> smtpSettings)
         {
@@ -33,6 +37,8 @@ namespace MyBackendApp.Controllers
             _smtpSettings = smtpSettings;
         }
 
+        #region Yardımcı Metodlar
+
         // Rastgele doğrulama kodu oluşturma metodu
         private string GenerateVerificationCode()
         {
@@ -40,8 +46,15 @@ namespace MyBackendApp.Controllers
             return random.Next(100000, 999999).ToString();
         }
 
+        // Rastgele şifre sıfırlama kodu oluşturma metodu
+        private string GeneratePasswordResetCode()
+        {
+            var random = new Random();
+            return random.Next(100000, 999999).ToString();
+        }
+
         // HTML e-posta gövdesini oluşturma metodu
-        private string GetEmailBody(string templateName, string username, string verificationCode = "")
+        private string GetEmailBody(string templateName, string username, string code = "")
         {
             string templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", templateName);
 
@@ -54,7 +67,10 @@ namespace MyBackendApp.Controllers
 
             // Şablondaki yer tutucuları değiştirin
             emailTemplate = emailTemplate.Replace("@Model.Username", username);
-            emailTemplate = emailTemplate.Replace("@Model.VerificationCode", verificationCode);
+            if (!string.IsNullOrEmpty(code))
+            {
+                emailTemplate = emailTemplate.Replace("@Model.ResetCode", code); // Yer tutucu uyumu sağlandı
+            }
 
             return emailTemplate;
         }
@@ -135,6 +151,28 @@ namespace MyBackendApp.Controllers
             await SendEmailAsync(email, username, subject, htmlBody);
         }
 
+        // Şifre sıfırlama e-postası gönderme metodu
+        private async Task SendPasswordResetEmail(string email, string resetCode, string username)
+        {
+            string htmlBody = GetEmailBody(PasswordResetTemplate, username, resetCode);
+            string subject = "Şifre Sıfırlama Talebi";
+
+            await SendEmailAsync(email, username, subject, htmlBody);
+        }
+
+        // Şifre sıfırlama başarı e-postası gönderme metodu
+        private async Task SendPasswordResetSuccessEmail(string email, string username)
+        {
+            string htmlBody = GetEmailBody(PasswordResetSuccessTemplate, username);
+            string subject = "Şifre Sıfırlama Başarılı";
+
+            await SendEmailAsync(email, username, subject, htmlBody);
+        }
+
+        #endregion
+
+        #region Kayıt, Doğrulama ve Giriş Metodları
+
         // Kayıt metodu
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] User user)
@@ -144,7 +182,7 @@ namespace MyBackendApp.Controllers
                 string.IsNullOrWhiteSpace(user.Email) ||
                 string.IsNullOrWhiteSpace(user.Password))
             {
-                return BadRequest("Kullanıcı adı, e-posta ve şifre doldurulması zorunludur.");
+                return BadRequest(new { error = "Kullanıcı adı, e-posta ve şifre doldurulması zorunludur." });
             }
 
             // Kullanıcı adı veya e-posta mevcut mu kontrol edin (hem User hem PendingUser tablolarında)
@@ -160,7 +198,7 @@ namespace MyBackendApp.Controllers
             {
                 if (existingUser.IsVerified)
                 {
-                    return BadRequest("Kullanıcı adı veya e-posta zaten kullanımda.");
+                    return BadRequest(new { error = "Kullanıcı adı veya e-posta zaten kullanımda." });
                 }
                 else
                 {
@@ -176,7 +214,7 @@ namespace MyBackendApp.Controllers
 
                         await SendVerificationEmail(pendingUser.Email!, pendingUser.VerificationCode, pendingUser.Username);
 
-                        return Ok("Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin.");
+                        return Ok(new { message = "Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin." });
                     }
                     else
                     {
@@ -197,7 +235,7 @@ namespace MyBackendApp.Controllers
 
                         await SendVerificationEmail(newPendingUser.Email!, newPendingUser.VerificationCode, newPendingUser.Username);
 
-                        return Ok("Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin.");
+                        return Ok(new { message = "Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin." });
                     }
                 }
             }
@@ -212,7 +250,7 @@ namespace MyBackendApp.Controllers
 
                 await SendVerificationEmail(existingPendingUser.Email!, existingPendingUser.VerificationCode, existingPendingUser.Username);
 
-                return Ok("Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin.");
+                return Ok(new { message = "Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin." });
             }
 
             // Yeni kullanıcı oluştur
@@ -254,18 +292,18 @@ namespace MyBackendApp.Controllers
 
             if (pendingUser == null)
             {
-                return BadRequest("Kullanıcı bulunamadı veya zaten doğrulanmış.");
+                return BadRequest(new { error = "Kullanıcı bulunamadı veya zaten doğrulanmış." });
             }
 
             // Doğrulama kodunun 3 dakika geçerli olup olmadığını kontrol edin
             if ((DateTime.UtcNow - pendingUser.VerificationCodeGeneratedAt).TotalMinutes > 3)
             {
-                return BadRequest("Doğrulama kodu süresi doldu. Yeni bir doğrulama kodu isteyin.");
+                return BadRequest(new { error = "Doğrulama kodu süresi doldu. Yeni bir doğrulama kodu isteyin." });
             }
 
             if (pendingUser.VerificationCode != verificationDto.VerificationCode)
             {
-                return BadRequest("Geçersiz doğrulama kodu.");
+                return BadRequest(new { error = "Geçersiz doğrulama kodu." });
             }
 
             // Doğrulama başarılı, kullanıcıyı User tablosuna taşı
@@ -312,22 +350,23 @@ namespace MyBackendApp.Controllers
             // Kullanıcı adı ve şifre boş mu kontrol edin
             if (string.IsNullOrWhiteSpace(loginUser.Username) || string.IsNullOrWhiteSpace(loginUser.Password))
             {
-                return BadRequest("Kullanıcı adı ve şifre doldurulması zorunludur.");
+                return BadRequest(new { error = "Kullanıcı adı ve şifre doldurulması zorunludur." });
             }
 
             // Kullanıcıyı User tablosundan bulun
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
             var puser = await _context.PendingUsers.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
+            
             // Kullanıcı doğrulanmış mı kontrol edin
             if (puser != null)
             {
-                return Unauthorized("Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin.");
+                return Unauthorized(new { error = "Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin." });
             }
 
             // Kullanıcı mevcut mu ve şifre doğru mu kontrol edin
             if (user == null || !BCrypt.Net.BCrypt.Verify(loginUser.Password, user.Password))
             {
-                return Unauthorized("Geçersiz kullanıcı adı veya şifre.");
+                return Unauthorized(new { error = "Geçersiz kullanıcı adı veya şifre." });
             }
 
             user.LastSignIn = DateTime.UtcNow;
@@ -350,27 +389,111 @@ namespace MyBackendApp.Controllers
 
             return Ok(userDto);
         }
-    }
 
-    // Models/UserDto.cs
-    namespace MyBackendApp.Models
-    {
-        public class UserDto
+        #endregion
+
+        #region Şifre Sıfırlama İşlemleri
+
+        // Şifre Sıfırlama Talebi Oluşturma Endpoint'i
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto forgotPasswordDto)
         {
-            public int Id { get; set; }
-            public required string Username { get; set; }
-            public string? Email { get; set; }
-            public string? Token { get; set; }
-            public DateOnly BDate { get; set; }
-            public DateTime CreDate { get; set; }
-            public bool IsVerified { get; set; }
-            public List<StockDto>? Stocks { get; set; } // Opsiyonel
+            if (string.IsNullOrWhiteSpace(forgotPasswordDto.Email))
+            {
+                return BadRequest(new { error = "E-posta adresi gereklidir." });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == forgotPasswordDto.Email);
+            if (user == null)
+            {
+                // E-posta var olup olmadığını gizlemek için her zaman başarılı bir yanıt döndürün
+                _logger.LogWarning($"Şifre sıfırlama talebi: {forgotPasswordDto.Email} bulunamadı.");
+                return Ok(new { message = "Şifre sıfırlama talimatları e-posta adresinize gönderildi." });
+            }
+
+            // Şifre sıfırlama kodu oluştur
+            string resetCode = GeneratePasswordResetCode();
+
+            // Şifre sıfırlama talebini oluştur veya güncelle
+            var passwordResetRequest = await _context.PasswordResetRequests
+                .FirstOrDefaultAsync(pr => pr.Email == forgotPasswordDto.Email && pr.UsedAt == null);
+
+            if (passwordResetRequest != null)
+            {
+                // Mevcut talebi güncelle
+                passwordResetRequest.ResetCode = resetCode;
+                passwordResetRequest.CodeGeneratedAt = DateTime.UtcNow;
+                _context.PasswordResetRequests.Update(passwordResetRequest);
+            }
+            else
+            {
+                // Yeni şifre sıfırlama talebi oluştur
+                passwordResetRequest = new PasswordResetRequest
+                {
+                    Email = user.Email!,
+                    ResetCode = resetCode,
+                    CodeGeneratedAt = DateTime.UtcNow
+                };
+                _context.PasswordResetRequests.Add(passwordResetRequest);
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Şifre sıfırlama e-postasını gönder
+            await SendPasswordResetEmail(user.Email!, resetCode, user.Username);
+
+            return Ok(new { message = "Şifre sıfırlama talimatları e-posta adresinize gönderildi." });
         }
 
-        public class VerificationDto
+        // Şifre Sıfırlama Endpoint'i
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
         {
-            public string Email { get; set; } = string.Empty;
-            public string VerificationCode { get; set; } = string.Empty;
+            if (string.IsNullOrWhiteSpace(resetPasswordDto.Email) ||
+                string.IsNullOrWhiteSpace(resetPasswordDto.ResetCode) ||
+                string.IsNullOrWhiteSpace(resetPasswordDto.NewPassword))
+            {
+                return BadRequest(new { error = "E-posta, doğrulama kodu ve yeni şifre gereklidir." });
+            }
+
+            var passwordResetRequest = await _context.PasswordResetRequests
+                .FirstOrDefaultAsync(pr => pr.Email == resetPasswordDto.Email && pr.ResetCode == resetPasswordDto.ResetCode && pr.UsedAt == null);
+
+            if (passwordResetRequest == null)
+            {
+                return BadRequest(new { error = "Geçersiz doğrulama kodu veya e-posta." });
+            }
+
+            // Doğrulama kodunun geçerlilik süresini kontrol et (örneğin, 15 dakika)
+            if ((DateTime.UtcNow - passwordResetRequest.CodeGeneratedAt).TotalMinutes > 15)
+            {
+                return BadRequest(new { error = "Doğrulama kodunun süresi doldu. Yeni bir şifre sıfırlama talebi oluşturun." });
+            }
+
+            // Kullanıcıyı bul
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == resetPasswordDto.Email);
+            if (user == null)
+            {
+                return BadRequest(new { error = "Kullanıcı bulunamadı." });
+            }
+
+            // Kullanıcının şifresini güncelle
+            user.Password = BCrypt.Net.BCrypt.HashPassword(resetPasswordDto.NewPassword);
+            _context.Users.Update(user);
+
+            // Şifre sıfırlama talebini kullanılmış olarak işaretle
+            passwordResetRequest.UsedAt = DateTime.UtcNow;
+            _context.PasswordResetRequests.Update(passwordResetRequest);
+
+            await _context.SaveChangesAsync();
+
+            // Şifre sıfırlama başarı e-postasını gönder
+            await SendPasswordResetSuccessEmail(user.Email!, user.Username);
+
+            return Ok(new { message = "Şifreniz başarıyla sıfırlandı." });
         }
+
+        #endregion
     }
+
 }

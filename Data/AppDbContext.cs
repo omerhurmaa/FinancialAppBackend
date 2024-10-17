@@ -8,7 +8,8 @@ namespace MyBackendApp.Data
     {
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<PendingUser> PendingUsers { get; set; } = null!;
-        public DbSet<Stock> Stocks { get; set; } = null!; // Bu satırı ekleyin
+        public DbSet<Stock> Stocks { get; set; } = null!; // 
+        public DbSet<PasswordResetRequest> PasswordResetRequests { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {

@@ -13,6 +13,22 @@ namespace MyBackendApp.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "PasswordResetRequests",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Email = table.Column<string>(type: "text", nullable: false),
+                    ResetCode = table.Column<string>(type: "text", nullable: false),
+                    CodeGeneratedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UsedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PasswordResetRequests", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "PendingUsers",
                 columns: table => new
                 {
@@ -86,6 +102,9 @@ namespace MyBackendApp.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "PasswordResetRequests");
+
             migrationBuilder.DropTable(
                 name: "PendingUsers");
 
