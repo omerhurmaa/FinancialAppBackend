@@ -59,7 +59,8 @@ namespace MyBackendApp.Migrations
                     BDate = table.Column<DateOnly>(type: "date", nullable: false),
                     CreDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     IsVerified = table.Column<bool>(type: "boolean", nullable: false),
-                    LastSignIn = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    LastSignIn = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    GoogleId = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {

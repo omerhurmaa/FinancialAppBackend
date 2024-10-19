@@ -13,9 +13,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // JWT ayarlarını al
 var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrEmpty(jwtKey))
+{
+    throw new Exception("JWT key is not configured.");
+}
 var key = Encoding.ASCII.GetBytes(jwtKey!);
 
-// JWT kimlik doğrulamayı ekle
+// JWT Authentication ayarları
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -23,14 +27,15 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false; // Geliştirme aşamasında HTTPS zorunlu değil
+    options.RequireHttpsMetadata = false; // Sadece geliştirme aşamasında false olmalı
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = false,
-        ValidateAudience = false
+        ValidateIssuer = false, // Üretim ortamında true yaparak issuer doğrulaması ekleyin
+        ValidateAudience = false, // Audience doğrulaması elle yapılacaksa false bırakılabilir
+        ClockSkew = TimeSpan.Zero // Opsiyonel: saat farkını minimize edin
     };
 });
 
@@ -46,20 +51,25 @@ builder.Services.AddControllers();
 // CORS politikalarını ekleyin (isteğe bağlı)
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
-        builder =>
-        {
-            builder.AllowAnyOrigin()
-                   .AllowAnyMethod()
-                   .AllowAnyHeader();
-        });
+    options.AddPolicy("AllowAll", policyBuilder =>
+    {
+        policyBuilder.AllowAnyOrigin()
+                     .AllowAnyMethod()
+                     .AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();
 
-app.UseHttpsRedirection();
+// HTTP Pipeline yapılandırması
 
-app.UseAuthentication(); // Kimlik doğrulama middleware'i eklendi
+// HTTPS yönlendirmesini sadece üretim ortamında etkinleştirin
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseAuthentication();
 app.UseAuthorization();
 
 // CORS'u kullan (isteğe bağlı)

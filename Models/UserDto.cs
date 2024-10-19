@@ -7,7 +7,7 @@ namespace MyBackendApp.Models
         public string? Email { get; set; }
         public string? Token { get; set; }
         public DateTime CreDate { get; set; }
-        public DateOnly BDate { get; set; }
+
         public bool IsVerified { get; set; }
     }
 }

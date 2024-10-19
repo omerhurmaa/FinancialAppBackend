@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MyBackendApp.Data;
 using MyBackendApp.Models;
-using MyBackendApp.Dtos; // DTO namespace'i eklendi
+using Google.Apis.Auth;
 using System.IO;
 
 namespace MyBackendApp.Controllers
@@ -223,8 +223,7 @@ namespace MyBackendApp.Controllers
                         {
                             Username = existingUser.Username,
                             Email = existingUser.Email,
-                            Password = existingUser.Password, // Şifre zaten hashlenmiş olmalı
-                            BDate = existingUser.BDate,
+                            Password = existingUser.Password!, // Şifre zaten hashlenmiş olmalı
                             VerificationCode = GenerateVerificationCode(),
                             VerificationCodeGeneratedAt = DateTime.UtcNow // Yeni eklenen alan
                         };
@@ -259,7 +258,6 @@ namespace MyBackendApp.Controllers
                 Username = user.Username,
                 Email = user.Email,
                 Password = BCrypt.Net.BCrypt.HashPassword(user.Password),
-                BDate = user.BDate,
                 VerificationCode = GenerateVerificationCode(),
                 VerificationCodeGeneratedAt = DateTime.UtcNow // Yeni eklenen alan
             };
@@ -277,7 +275,6 @@ namespace MyBackendApp.Controllers
                 Username = newUser.Username,
                 Email = newUser.Email,
                 CreDate = newUser.CreDate,
-                BDate = newUser.BDate,
                 IsVerified = false
             };
 
@@ -312,7 +309,6 @@ namespace MyBackendApp.Controllers
                 Username = pendingUser.Username,
                 Email = pendingUser.Email,
                 Password = pendingUser.Password,
-                BDate = pendingUser.BDate,
                 CreDate = pendingUser.CreDate,
                 IsVerified = true,
                 LastSignIn = DateTime.UtcNow
@@ -336,7 +332,6 @@ namespace MyBackendApp.Controllers
                 Email = newUser.Email,
                 Token = tokenString,
                 CreDate = newUser.CreDate,
-                BDate = newUser.BDate,
                 IsVerified = newUser.IsVerified
             };
 
@@ -356,7 +351,7 @@ namespace MyBackendApp.Controllers
             // Kullanıcıyı User tablosundan bulun
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
             var puser = await _context.PendingUsers.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
-            
+
             // Kullanıcı doğrulanmış mı kontrol edin
             if (puser != null)
             {
@@ -383,8 +378,7 @@ namespace MyBackendApp.Controllers
                 Username = user.Username,
                 Email = user.Email,
                 Token = tokenString,
-                CreDate = user.CreDate,
-                BDate = user.BDate
+                CreDate = user.CreDate
             };
 
             return Ok(userDto);
@@ -492,6 +486,108 @@ namespace MyBackendApp.Controllers
 
             return Ok(new { message = "Şifreniz başarıyla sıfırlandı." });
         }
+
+        #endregion
+
+        #region Google Giriş İşlemleri
+
+        // Google ile giriş için DTO sınıfını kullanmak
+        [HttpPost("google-login")]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto googleLoginDto)
+        {
+            if (string.IsNullOrEmpty(googleLoginDto.id_token))
+            {
+                return BadRequest(new { error = "ID token is required." });
+            }
+
+            // Google ID token'ını doğrulama
+            GoogleJsonWebSignature.Payload payload;
+            try
+            {
+                var expectedAudience = _configuration["Authentication:Google:ClientId"];
+                _logger.LogInformation($"Expected Audience (ClientId): {expectedAudience}");
+
+                var settings = new GoogleJsonWebSignature.ValidationSettings()
+                {
+                    Audience = new List<string>() { expectedAudience! }
+                };
+                payload = await GoogleJsonWebSignature.ValidateAsync(googleLoginDto.id_token, settings);
+            }
+            catch (Google.Apis.Auth.InvalidJwtException ex)
+            {
+                _logger.LogError(ex, "Invalid Google ID token.");
+
+                // Token'ı çözümleme ve 'aud' claim'ini loglama
+                try
+                {
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwtToken = handler.ReadJwtToken(googleLoginDto.id_token);
+                    var aud = jwtToken.Audiences.FirstOrDefault();
+                    _logger.LogInformation($"Expected Audience: {_configuration["Authentication:Google:ClientId"]}");
+                    _logger.LogInformation($"Actual Audience: {aud}");
+                }
+                catch (Exception innerEx)
+                {
+                    _logger.LogError(innerEx, "Error reading JWT token.");
+                }
+
+                return Unauthorized(new { error = "Invalid ID token." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error validating Google ID token.");
+                return Unauthorized(new { error = "Invalid ID token." });
+            }
+
+            // Kullanıcı bilgilerini çıkarma
+            var email = payload.Email;
+            var name = payload.Name;
+            var googleId = payload.Subject; // Google'ın benzersiz kullanıcı ID'si
+
+            // Kullanıcının veritabanında olup olmadığını kontrol etme
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user == null)
+            {
+                // Yeni kullanıcı oluşturma
+                user = new User
+                {
+                    Username = name,
+                    Email = email,
+                    Password = null!, // Google ile giriş yaptıkları için şifreye ihtiyaç yok
+                    IsVerified = true,
+                    CreDate = DateTime.UtcNow,
+                    LastSignIn = DateTime.UtcNow,
+                    GoogleId = googleId
+                };
+
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
+            }
+            else
+            {
+                // Kullanıcının son giriş tarihini güncelleme
+                user.LastSignIn = DateTime.UtcNow;
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+            }
+
+            // JWT token oluşturma
+            var token = GenerateJwtToken(user);
+
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Token = token,
+                CreDate = user.CreDate,
+                IsVerified = user.IsVerified
+            };
+
+            return Ok(userDto);
+        }
+
 
         #endregion
     }

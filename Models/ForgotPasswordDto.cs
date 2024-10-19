@@ -1,5 +1,5 @@
 // Dtos/ForgotPasswordDto.cs
-namespace MyBackendApp.Dtos
+namespace MyBackendApp.Models
 {
     public class ForgotPasswordDto
     {
