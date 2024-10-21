@@ -21,61 +21,37 @@ namespace MyBackendApp.Controllers
             _logger = logger;
         }
 
+        // GET: api/Goals
         [HttpGet]
         [Authorize]
         public async Task<IActionResult> GetUserGoal()
         {
-            // Token'dan UserId değerini al
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                _logger.LogError("User ID not found in token.");
+            var userId = GetUserIdFromToken();
+            if (userId == null) 
                 return Unauthorized(new { message = "User ID not found in token." });
-            }
 
-            if (!int.TryParse(userIdClaim, out int userId))
-            {
-                _logger.LogError($"Invalid User ID in token: {userIdClaim}");
-                return Unauthorized(new { message = "Invalid User ID in token." });
-            }
-
-            _logger.LogInformation($"User ID from token: {userId}");
+            _logger.LogInformation($"Fetching goal for User ID: {userId}");
 
             var goal = await _context.Goals
                 .Include(g => g.User)
-                .FirstOrDefaultAsync(g => g.UserId == userId);
+                .FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
             if (goal == null)
             {
                 return NotFound(new { message = "Goal not found." });
             }
 
-            // GoalDto oluşturma
-            var goalDto = new GoalDto
-            {
-                Id = goal.Id,
-                Amount = goal.Amount,
-                Description = goal.Description,
-                CreatedAt = goal.CreatedAt,
-                UpdatedAt = goal.UpdatedAt,
-                User = new UserDto
-                {
-                    Id = goal.User!.Id,
-                    Username = goal.User.Username,
-                    Email = goal.User.Email,
-                    CreDate = goal.User.CreDate,
-                    IsVerified = goal.User.IsVerified
-                }
-            };
+            var goalDto = MapToGoalDto(goal);
 
             return Ok(goalDto);
         }
 
+        // POST: api/Goals
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> AddGoal([FromBody] GoalDto goalDto)
+        public async Task<IActionResult> AddGoal([FromBody] CreateGoalDto createGoalDto)
         {
-            if (goalDto == null)
+            if (createGoalDto == null)
             {
                 return BadRequest(new { message = "Goal data is required." });
             }
@@ -85,23 +61,13 @@ namespace MyBackendApp.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Token'dan UserId değerini al
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                _logger.LogError("User ID not found in token.");
-                return Unauthorized(new { message = "User ID not found in token." });
-            }
+            var userId = GetUserIdFromToken();
+            if (userId == null) 
+                return Unauthorized(new { message = "User ID not found or invalid in token." });
 
-            if (!int.TryParse(userIdClaim, out int userId))
-            {
-                _logger.LogError($"Invalid User ID in token: {userIdClaim}");
-                return Unauthorized(new { message = "Invalid User ID in token." });
-            }
+            _logger.LogInformation($"Adding goal for User ID: {userId}");
 
-            _logger.LogInformation($"User ID from token: {userId}");
-
-            var existingGoal = await _context.Goals.FirstOrDefaultAsync(g => g.UserId == userId);
+            var existingGoal = await _context.Goals.FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
             if (existingGoal != null)
             {
@@ -110,10 +76,10 @@ namespace MyBackendApp.Controllers
 
             var goal = new Goal
             {
-                Amount = goalDto.Amount,
-                Description = goalDto.Description,
+                Amount = createGoalDto.Amount,
+                Description = createGoalDto.Description,
                 CreatedAt = DateTime.UtcNow,
-                UserId = userId
+                UserId = userId.Value
             };
 
             _context.Goals.Add(goal);
@@ -121,37 +87,19 @@ namespace MyBackendApp.Controllers
 
             _logger.LogInformation($"Goal created with ID: {goal.Id} for User ID: {goal.UserId}");
 
-            // Kullanıcı bilgisini dahil etmek için
-            goal = await _context.Goals
-                .Include(g => g.User)
-                .FirstOrDefaultAsync(g => g.Id == goal.Id);
+            await _context.Entry(goal).Reference(g => g.User).LoadAsync();
 
-            // GoalDto oluşturma
-            var newGoalDto = new GoalDto
-            {
-                Id = goal!.Id,
-                Amount = goal.Amount,
-                Description = goal.Description,
-                CreatedAt = goal.CreatedAt,
-                UpdatedAt = goal.UpdatedAt,
-                User = new UserDto
-                {
-                    Id = goal.User!.Id,
-                    Username = goal.User.Username,
-                    Email = goal.User.Email,
-                    CreDate = goal.User.CreDate,
-                    IsVerified = goal.User.IsVerified
-                }
-            };
+            var goalDto = MapToGoalDto(goal);
 
-            return Ok(newGoalDto);
+            return Ok(goalDto);
         }
 
+        // PUT: api/Goals
         [HttpPut]
         [Authorize]
-        public async Task<IActionResult> UpdateGoal([FromBody] GoalDto goalDto)
+        public async Task<IActionResult> UpdateGoal([FromBody] UpdateGoalDto updateGoalDto)
         {
-            if (goalDto == null)
+            if (updateGoalDto == null)
             {
                 return BadRequest(new { message = "Goal data is required." });
             }
@@ -161,33 +109,23 @@ namespace MyBackendApp.Controllers
                 return BadRequest(ModelState);
             }
 
-            // Token'dan UserId değerini al
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                _logger.LogError("User ID not found in token.");
-                return Unauthorized(new { message = "User ID not found in token." });
-            }
+            var userId = GetUserIdFromToken();
+            if (userId == null) 
+                return Unauthorized(new { message = "User ID not found or invalid in token." });
 
-            if (!int.TryParse(userIdClaim, out int userId))
-            {
-                _logger.LogError($"Invalid User ID in token: {userIdClaim}");
-                return Unauthorized(new { message = "Invalid User ID in token." });
-            }
-
-            _logger.LogInformation($"User ID from token: {userId}");
+            _logger.LogInformation($"Updating goal for User ID: {userId}");
 
             var goal = await _context.Goals
                 .Include(g => g.User)
-                .FirstOrDefaultAsync(g => g.UserId == userId);
+                .FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
             if (goal == null)
             {
                 return NotFound(new { message = "Goal not found." });
             }
 
-            goal.Amount = goalDto.Amount;
-            goal.Description = goalDto.Description;
+            goal.Amount = updateGoalDto.Amount;
+            goal.Description = updateGoalDto.Description;
             goal.UpdatedAt = DateTime.UtcNow;
 
             _context.Goals.Update(goal);
@@ -195,48 +133,23 @@ namespace MyBackendApp.Controllers
 
             _logger.LogInformation($"Goal updated with ID: {goal.Id} for User ID: {goal.UserId}");
 
-            // Güncellenmiş GoalDto oluşturma
-            var updatedGoalDto = new GoalDto
-            {
-                Id = goal.Id,
-                Amount = goal.Amount,
-                Description = goal.Description,
-                CreatedAt = goal.CreatedAt,
-                UpdatedAt = goal.UpdatedAt,
-                User = new UserDto
-                {
-                    Id = goal.User!.Id,
-                    Username = goal.User.Username,
-                    Email = goal.User.Email,
-                    CreDate = goal.User.CreDate,
-                    IsVerified = goal.User.IsVerified
-                }
-            };
+            var updatedGoalDto = MapToGoalDto(goal);
 
             return Ok(updatedGoalDto);
         }
 
+        // DELETE: api/Goals
         [HttpDelete]
         [Authorize]
         public async Task<IActionResult> DeleteGoal()
         {
-            // Token'dan UserId değerini al
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userIdClaim))
-            {
-                _logger.LogError("User ID not found in token.");
+            var userId = GetUserIdFromToken();
+            if (userId == null) 
                 return Unauthorized(new { message = "User ID not found in token." });
-            }
 
-            if (!int.TryParse(userIdClaim, out int userId))
-            {
-                _logger.LogError($"Invalid User ID in token: {userIdClaim}");
-                return Unauthorized(new { message = "Invalid User ID in token." });
-            }
+            _logger.LogInformation($"Deleting goal for User ID: {userId}");
 
-            _logger.LogInformation($"User ID from token: {userId}");
-
-            var goal = await _context.Goals.FirstOrDefaultAsync(g => g.UserId == userId);
+            var goal = await _context.Goals.FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
             if (goal == null)
             {
@@ -250,5 +163,47 @@ namespace MyBackendApp.Controllers
 
             return Ok(new { message = "Goal deleted successfully." });
         }
+
+        #region Helper Methods
+
+        private int? GetUserIdFromToken()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                _logger.LogError("User ID not found in token.");
+                return null;
+            }
+
+            if (!int.TryParse(userIdClaim, out int userId))
+            {
+                _logger.LogError($"Invalid User ID in token: {userIdClaim}");
+                return null;
+            }
+
+            return userId;
+        }
+
+        private GoalDto MapToGoalDto(Goal goal)
+        {
+            return new GoalDto
+            {
+                Id = goal.Id,
+                Amount = goal.Amount,
+                Description = goal.Description,
+                CreatedAt = goal.CreatedAt,
+                UpdatedAt = goal.UpdatedAt,
+                User = new UserDto
+                {
+                    Id = goal.User.Id,
+                    Username = goal.User.Username,
+                    Email = goal.User.Email,
+                    CreDate = goal.User.CreDate,
+                    IsVerified = goal.User.IsVerified
+                }
+            };
+        }
+
+        #endregion
     }
 }
