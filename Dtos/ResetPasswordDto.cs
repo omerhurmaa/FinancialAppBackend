@@ -1,5 +1,5 @@
 // Dtos/ResetPasswordDto.cs
-namespace MyBackendApp.Models
+namespace MyBackendApp.Dtos
 {
     public class ResetPasswordDto
     {

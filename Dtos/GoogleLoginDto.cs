@@ -1,4 +1,4 @@
-namespace MyBackendApp.Models
+namespace MyBackendApp.Dtos
 {
     public class GoogleLoginDto
     {

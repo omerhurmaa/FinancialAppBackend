@@ -1,5 +1,5 @@
 // Models/AddStockDto.cs
-namespace MyBackendApp.Models
+namespace MyBackendApp.Dtos
 {
     public class AddStockDto
     {

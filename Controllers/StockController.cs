@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MyBackendApp.Data;
 using MyBackendApp.Models;
 using System.Security.Claims; // Ekleyin
+using MyBackendApp.Dtos;
 
 namespace MyBackendApp.Controllers
 {

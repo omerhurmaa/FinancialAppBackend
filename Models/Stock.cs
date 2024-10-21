@@ -1,4 +1,6 @@
 // Models/Stock.cs
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace MyBackendApp.Models
 {
     public class Stock
@@ -14,6 +16,7 @@ namespace MyBackendApp.Models
         public DateTime? LastPriceRequestDate { get; set; } // Son Fiyat İstek Tarihi
 
         // Navigasyon Özelliği
+        [ForeignKey("User")]
         public int UserId { get; set; }
         public User Owner { get; set; } = null!;
     }

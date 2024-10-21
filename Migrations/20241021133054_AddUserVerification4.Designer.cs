@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyBackendApp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20241019111628_AddUserVerification1")]
-    partial class AddUserVerification1
+    [Migration("20241021133054_AddUserVerification4")]
+    partial class AddUserVerification4
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,38 @@ namespace MyBackendApp.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("MyBackendApp.Models.Goal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Goals");
+                });
 
             modelBuilder.Entity("MyBackendApp.Models.PasswordResetRequest", b =>
                 {
@@ -152,7 +184,7 @@ namespace MyBackendApp.Migrations
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime>("LastSignIn")
+                    b.Property<DateTime?>("LastSignIn")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Password")
@@ -165,6 +197,17 @@ namespace MyBackendApp.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("MyBackendApp.Models.Goal", b =>
+                {
+                    b.HasOne("MyBackendApp.Models.User", "User")
+                        .WithOne("Goal")
+                        .HasForeignKey("MyBackendApp.Models.Goal", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MyBackendApp.Models.Stock", b =>
@@ -180,6 +223,8 @@ namespace MyBackendApp.Migrations
 
             modelBuilder.Entity("MyBackendApp.Models.User", b =>
                 {
+                    b.Navigation("Goal");
+
                     b.Navigation("Stocks");
                 });
 #pragma warning restore 612, 618

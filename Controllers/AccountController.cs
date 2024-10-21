@@ -11,6 +11,7 @@ using MyBackendApp.Data;
 using MyBackendApp.Models;
 using Google.Apis.Auth;
 using System.IO;
+using MyBackendApp.Dtos;
 
 namespace MyBackendApp.Controllers
 {
@@ -85,8 +86,8 @@ namespace MyBackendApp.Controllers
             {
                 Subject = new ClaimsIdentity(new Claim[]
                 {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                    new Claim(ClaimTypes.Name, user.Username)
+            new Claim("nameid", user.Id.ToString()), // Değişiklik burada
+            new Claim(ClaimTypes.Name, user.Username)
                 }),
                 Expires = DateTime.UtcNow.AddMonths(1),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
@@ -95,6 +96,7 @@ namespace MyBackendApp.Controllers
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
+
 
         // Ortak e-posta gönderim metodu
         private async Task SendEmailAsync(string toEmail, string toName, string subject, string htmlBody)
@@ -439,7 +441,7 @@ namespace MyBackendApp.Controllers
             return Ok(new { message = "Şifre sıfırlama talimatları e-posta adresinize gönderildi." });
         }
 
-        // Şifre Sıfırlama Endpoint'i
+        //Şifre Sıfırlama Endpoint'i
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
         {
@@ -566,7 +568,7 @@ namespace MyBackendApp.Controllers
             }
             else
             {
-                // Kullanıcının son giriş tarihini güncelleme
+                // Kullanıcının son giriş tarihini güncelleme 
                 user.LastSignIn = DateTime.UtcNow;
                 _context.Users.Update(user);
                 await _context.SaveChangesAsync();
