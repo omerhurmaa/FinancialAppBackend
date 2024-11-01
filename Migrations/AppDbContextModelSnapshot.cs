@@ -109,7 +109,7 @@ namespace MyBackendApp.Migrations
                     b.Property<string>("VerificationCode")
                         .HasColumnType("text");
 
-                    b.Property<DateTime>("VerificationCodeGeneratedAt")
+                    b.Property<DateTime?>("VerificationCodeGeneratedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
@@ -156,7 +156,8 @@ namespace MyBackendApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "Symbol")
+                        .IsUnique();
 
                     b.ToTable("Stocks");
                 });
@@ -196,6 +197,38 @@ namespace MyBackendApp.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("MyBackendApp.Models.Wishlist", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("PriceAtAddition")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("StockName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Symbol")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Wishlists");
+                });
+
             modelBuilder.Entity("MyBackendApp.Models.Goal", b =>
                 {
                     b.HasOne("MyBackendApp.Models.User", "User")
@@ -218,11 +251,24 @@ namespace MyBackendApp.Migrations
                     b.Navigation("Owner");
                 });
 
+            modelBuilder.Entity("MyBackendApp.Models.Wishlist", b =>
+                {
+                    b.HasOne("MyBackendApp.Models.User", "User")
+                        .WithMany("Wishlists")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MyBackendApp.Models.User", b =>
                 {
                     b.Navigation("Goal");
 
                     b.Navigation("Stocks");
+
+                    b.Navigation("Wishlists");
                 });
 #pragma warning restore 612, 618
         }

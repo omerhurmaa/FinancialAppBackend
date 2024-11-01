@@ -12,6 +12,7 @@ using MyBackendApp.Models;
 using Google.Apis.Auth;
 using System.IO;
 using MyBackendApp.Dtos;
+using Google.Apis.Util;
 
 namespace MyBackendApp.Controllers
 {
@@ -40,18 +41,52 @@ namespace MyBackendApp.Controllers
 
         #region Yardımcı Metodlar
 
+        private async Task<IActionResult> ResendVerificationCode(PendingUser pendingUser)
+        {
+            if (pendingUser.VerificationCodeGeneratedAt.HasValue)
+            {
+                var timeSinceLastCode = DateTime.UtcNow - pendingUser.VerificationCodeGeneratedAt.Value;
+                if (timeSinceLastCode < TimeSpan.FromMinutes(3))
+                {
+                    var remainingTime = TimeSpan.FromMinutes(3) - timeSinceLastCode;
+
+                    if (remainingTime.TotalSeconds > 0)
+                    {
+                        var remainingMinutes = (int)Math.Floor(remainingTime.TotalMinutes);
+                        var remainingSeconds = remainingTime.Seconds;
+
+                        return new BadRequestObjectResult(new
+                        {
+                            message = $"Doğrulama kodu çok kısa süre önce gönderildi. Lütfen {remainingMinutes} dakika {remainingSeconds} saniye sonra tekrar deneyin."
+                        });
+                    }
+                }
+            }
+
+            // Yeni Doğrulama Kodu Oluştur ve Güncelle
+            pendingUser.VerificationCode = GenerateVerificationCode();
+            pendingUser.VerificationCodeGeneratedAt = DateTime.UtcNow;
+
+            _context.PendingUsers.Update(pendingUser);
+            await _context.SaveChangesAsync();
+
+            // Doğrulama E-postasını Gönder
+            await SendVerificationEmail(pendingUser.Email!, pendingUser.VerificationCode, pendingUser.Username);
+
+            return new OkObjectResult(new { message = "Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin." });
+        }
         // Rastgele doğrulama kodu oluşturma metodu
         private string GenerateVerificationCode()
         {
             var random = new Random();
-            return random.Next(100000, 999999).ToString();
+            return random.Next(1000, 9999).ToString();
         }
 
         // Rastgele şifre sıfırlama kodu oluşturma metodu
         private string GeneratePasswordResetCode()
         {
             var random = new Random();
-            return random.Next(100000, 999999).ToString();
+            return random.Next(1000, 9999).ToString();
         }
 
         // HTML e-posta gövdesini oluşturma metodu
@@ -176,10 +211,11 @@ namespace MyBackendApp.Controllers
         #region Kayıt, Doğrulama ve Giriş Metodları
 
         // Kayıt metodu
+
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] User user)
         {
-            // Kullanıcı adı, e-posta ve şifre kontrolü
+            // 1. Girdi Doğrulaması
             if (string.IsNullOrWhiteSpace(user.Username) ||
                 string.IsNullOrWhiteSpace(user.Email) ||
                 string.IsNullOrWhiteSpace(user.Password))
@@ -187,20 +223,27 @@ namespace MyBackendApp.Controllers
                 return BadRequest(new { error = "Kullanıcı adı, e-posta ve şifre doldurulması zorunludur." });
             }
 
-            // Kullanıcı adı veya e-posta mevcut mu kontrol edin (hem User hem PendingUser tablolarında)
+            // 2. Mevcut Kullanıcıları Kontrol Etme
             var existingUser = await _context.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Username == user.Username || u.Email == user.Email);
 
             var existingPendingUser = await _context.PendingUsers
-                .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Username == user.Username || u.Email == user.Email);
 
+            // 3. Mevcut Kullanıcı Durumunu İşleme
             if (existingUser != null)
             {
                 if (existingUser.IsVerified)
                 {
-                    return BadRequest(new { error = "Kullanıcı adı veya e-posta zaten kullanımda." });
+                    if (!string.IsNullOrEmpty(existingUser.GoogleId))
+                    {
+                        return Unauthorized(new { error = "Hesabınıza Google ile giriş yapabilirsiniz." });
+                    }
+                    else
+                    {
+                        return BadRequest(new { error = "Kullanıcı adı veya e-posta zaten kullanımda." });
+                    }
                 }
                 else
                 {
@@ -209,29 +252,22 @@ namespace MyBackendApp.Controllers
 
                     if (pendingUser != null)
                     {
-                        pendingUser.VerificationCode = GenerateVerificationCode();
-                        pendingUser.VerificationCodeGeneratedAt = DateTime.UtcNow; // Yeni eklenen alanı güncelleyin
-                        _context.PendingUsers.Update(pendingUser);
-                        await _context.SaveChangesAsync();
-
-                        await SendVerificationEmail(pendingUser.Email!, pendingUser.VerificationCode, pendingUser.Username);
-
-                        return Ok(new { message = "Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin." });
+                        return await ResendVerificationCode(pendingUser);
                     }
                     else
                     {
-                        // PendingUser tablosunda yok, oluşturun
+                        // PendingUser tablosunda yoksa, yeni PendingUser oluştur
                         var newPendingUser = new PendingUser
                         {
                             Username = existingUser.Username,
                             Email = existingUser.Email,
                             Password = existingUser.Password!, // Şifre zaten hashlenmiş olmalı
                             VerificationCode = GenerateVerificationCode(),
-                            VerificationCodeGeneratedAt = DateTime.UtcNow // Yeni eklenen alan
+                            VerificationCodeGeneratedAt = DateTime.UtcNow
                         };
 
                         _context.PendingUsers.Add(newPendingUser);
-                        _context.Users.Remove(existingUser); // Kullanıcıyı User tablosundan kaldır
+                        _context.Users.Remove(existingUser); // Kullanıcıyı Users tablosundan kaldır
                         await _context.SaveChangesAsync();
 
                         await SendVerificationEmail(newPendingUser.Email!, newPendingUser.VerificationCode, newPendingUser.Username);
@@ -241,36 +277,29 @@ namespace MyBackendApp.Controllers
                 }
             }
 
+            // 4. Mevcut PendingUser Varsa
             if (existingPendingUser != null)
             {
-                // PendingUser zaten mevcut, doğrulama kodunu yeniden gönder
-                existingPendingUser.VerificationCode = GenerateVerificationCode();
-                existingPendingUser.VerificationCodeGeneratedAt = DateTime.UtcNow; // Yeni eklenen alanı güncelleyin
-                _context.PendingUsers.Update(existingPendingUser);
-                await _context.SaveChangesAsync();
-
-                await SendVerificationEmail(existingPendingUser.Email!, existingPendingUser.VerificationCode, existingPendingUser.Username);
-
-                return Ok(new { message = "Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin." });
+                return await ResendVerificationCode(existingPendingUser);
             }
 
-            // Yeni kullanıcı oluştur
+            // 5. Yeni PendingUser Oluştur
             var newUser = new PendingUser
             {
                 Username = user.Username,
                 Email = user.Email,
                 Password = BCrypt.Net.BCrypt.HashPassword(user.Password),
                 VerificationCode = GenerateVerificationCode(),
-                VerificationCodeGeneratedAt = DateTime.UtcNow // Yeni eklenen alan
+                VerificationCodeGeneratedAt = DateTime.UtcNow
             };
 
             _context.PendingUsers.Add(newUser);
             await _context.SaveChangesAsync();
 
-            // Doğrulama kodunu e-posta ile gönder
+            // 5.1. Doğrulama E-postasını Gönder
             await SendVerificationEmail(newUser.Email, newUser.VerificationCode, newUser.Username);
 
-            // Kullanıcı bilgilerini döndür (parolayı ve doğrulama kodunu dahil etmeyin)
+            // 5.2. Kullanıcı Bilgilerini Döndür (Parola ve Doğrulama Kodu Hariç)
             var userDto = new UserDto
             {
                 Id = newUser.Id,
@@ -279,8 +308,12 @@ namespace MyBackendApp.Controllers
                 CreDate = newUser.CreDate,
                 IsVerified = false
             };
+            return Ok(new
+            {
+                user = userDto,
+                message = "Doğrulama Kodu Gönderildi."
+            });
 
-            return Ok(userDto);
         }
 
         // Doğrulama metodu
@@ -295,7 +328,13 @@ namespace MyBackendApp.Controllers
             }
 
             // Doğrulama kodunun 3 dakika geçerli olup olmadığını kontrol edin
-            if ((DateTime.UtcNow - pendingUser.VerificationCodeGeneratedAt).TotalMinutes > 3)
+            if (!pendingUser.VerificationCodeGeneratedAt.HasValue)
+            {
+                return BadRequest(new { error = "Doğrulama kodu oluşturulmamış." });
+            }
+
+            var timeSinceLastCode = DateTime.UtcNow - pendingUser.VerificationCodeGeneratedAt.Value;
+            if (timeSinceLastCode > TimeSpan.FromMinutes(3))
             {
                 return BadRequest(new { error = "Doğrulama kodu süresi doldu. Yeni bir doğrulama kodu isteyin." });
             }
@@ -340,51 +379,137 @@ namespace MyBackendApp.Controllers
             return Ok(userDto);
         }
 
-        // Giriş metodu
+
+
+
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] User loginUser)
+        public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
-            // Kullanıcı adı ve şifre boş mu kontrol edin
-            if (string.IsNullOrWhiteSpace(loginUser.Username) || string.IsNullOrWhiteSpace(loginUser.Password))
+            // 1. DTO Doğrulama
+            if (loginDto == null)
             {
-                return BadRequest(new { error = "Kullanıcı adı ve şifre doldurulması zorunludur." });
+                return BadRequest(new { error = "Geçersiz istek verisi." });
             }
 
-            // Kullanıcıyı User tablosundan bulun
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
-            var puser = await _context.PendingUsers.FirstOrDefaultAsync(u => u.Username == loginUser.Username);
-
-            // Kullanıcı doğrulanmış mı kontrol edin
-            if (puser != null)
+            if (!ModelState.IsValid)
             {
-                return Unauthorized(new { error = "Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin." });
+                return BadRequest(ModelState);
             }
 
-            // Kullanıcı mevcut mu ve şifre doğru mu kontrol edin
-            if (user == null || !BCrypt.Net.BCrypt.Verify(loginUser.Password, user.Password))
+            // 2. PendingUsers Tablosunda Kullanıcıyı Bulma
+            var pendingUser = await _context.PendingUsers
+                .FirstOrDefaultAsync(u => u.Username == loginDto.Username);
+
+            if (pendingUser != null)
+            {
+                TimeSpan codeValidityDuration = TimeSpan.FromMinutes(3);
+                TimeSpan timeSinceLastCode = pendingUser.VerificationCodeGeneratedAt.HasValue
+                    ? DateTime.UtcNow - pendingUser.VerificationCodeGeneratedAt.Value
+                    : TimeSpan.FromMinutes(4); // Treat as expired if null
+
+                if (timeSinceLastCode >= codeValidityDuration)
+                {
+                    // 2.1. Yeni Doğrulama Kodu Oluşturma ve Gönderme
+                    pendingUser.VerificationCode = GenerateVerificationCode();
+                    pendingUser.VerificationCodeGeneratedAt = DateTime.UtcNow;
+                    _context.PendingUsers.Update(pendingUser);
+                    await _context.SaveChangesAsync();
+
+                    // Doğrulama E-postasını Gönderme
+                    await SendVerificationEmail(pendingUser.Email!, pendingUser.VerificationCode, pendingUser.Username);
+
+                    _logger.LogInformation("Yeni doğrulama kodu gönderildi. Email: {Email}", pendingUser.Email);
+
+                    // 2.2. Yanıtı Döndürme
+                    var responseUserDto = new UserDto
+                    {
+                        Username = pendingUser.Username,
+                        Email = pendingUser.Email,
+                        IsVerified = false
+                    };
+
+                    return Ok(new
+                    {
+                        user = responseUserDto,
+                        message = "Hesabınız doğrulanmamış. Doğrulama kodu gönderildi. Lütfen e-postanızı kontrol edin."
+                    });
+                }
+                else
+                {
+                    // 2.3. Kalan Süreyi Hesaplama ve Bilgilendirme
+                    var remainingTime = codeValidityDuration - timeSinceLastCode;
+
+                    if (remainingTime.TotalSeconds > 0)
+                    {
+                        int remainingMinutes = (int)Math.Floor(remainingTime.TotalMinutes);
+                        int remainingSeconds = (int)(remainingTime.TotalSeconds % 60);
+
+                        _logger.LogInformation("Doğrulama kodu henüz yeniden gönderilemez. Kalan süre: {Minutes} dakika {Seconds} saniye.", remainingMinutes, remainingSeconds);
+
+                        var responseUserDto = new UserDto
+                        {
+                            Username = pendingUser.Username,
+                            Email = pendingUser.Email,
+                            IsVerified = false
+                        };
+
+                        return Ok(new
+                        {
+                            user = responseUserDto,
+                            message = $"Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin. Doğrulama kodunu yeniden göndermek için {remainingMinutes} dakika {remainingSeconds} saniye bekleyin."
+                        });
+                    }
+                }
+            }
+
+            // 3. Users Tablosunda Kullanıcıyı Bulma
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Username == loginDto.Username);
+
+            if (user == null)
             {
                 return Unauthorized(new { error = "Geçersiz kullanıcı adı veya şifre." });
             }
 
+            // 4. Google ile Giriş Yapmış Kullanıcıları Kontrol Etme
+            if (!string.IsNullOrEmpty(user.GoogleId))
+            {
+                return Unauthorized(new { error = "Hesabınıza Google ile giriş yapabilirsiniz." });
+            }
+
+            // 5. Şifre Doğrulaması
+            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(loginDto.Password, user.Password);
+            if (!isPasswordValid)
+            {
+                return Unauthorized(new { error = "Geçersiz kullanıcı adı veya şifre." });
+            }
+
+            // 6. LastSignIn Güncelleme
             user.LastSignIn = DateTime.UtcNow;
             _context.Users.Update(user);
             await _context.SaveChangesAsync();
 
-            // JWT oluştur
+            // 7. JWT Token Oluşturma
             var tokenString = GenerateJwtToken(user);
 
-            // Kullanıcı bilgilerini ve token'ı döndür
-            var userDto = new UserDto
+            // 8. UserDto Oluşturma ve Döndürme
+            var userDtoVerified = new UserDto
             {
                 Id = user.Id,
                 Username = user.Username,
                 Email = user.Email,
                 Token = tokenString,
-                CreDate = user.CreDate
+                CreDate = user.CreDate,
+                IsVerified = true
             };
 
-            return Ok(userDto);
+            return Ok(new
+            {
+                user = userDtoVerified,
+                message = "Giriş başarılı."
+            });
         }
+
 
         #endregion
 

@@ -9,6 +9,6 @@ namespace MyBackendApp.Models
         public DateOnly BDate { get; set; }
         public DateTime CreDate { get; set; } = DateTime.UtcNow;
         public string? VerificationCode { get; set; }
-        public DateTime VerificationCodeGeneratedAt { get; set; }
+        public DateTime? VerificationCodeGeneratedAt { get; set; }
     }
 }
