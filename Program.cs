@@ -27,7 +27,6 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false; // Sadece geliştirme aşamasında false olmalı
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -61,20 +60,35 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// HTTP Pipeline yapılandırması
-
-// HTTPS yönlendirmesini sadece üretim ortamında etkinleştirin
-if (!app.Environment.IsDevelopment())
+// Veritabanı migrasyonlarını uygulayın
+using (var scope = app.Services.CreateScope())
 {
-    app.UseHttpsRedirection();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
 }
 
-app.UseAuthentication();
-app.UseAuthorization();
+// HTTP Pipeline yapılandırması
+
+// HTTPS yönlendirmesini etkinleştirin (isteğe bağlı)
+// if (!app.Environment.IsDevelopment())
+// {
+//     app.UseHttpsRedirection();
+// }
+
+// **ÖNEMLİ:** UseRouting middleware'ini ekleyin
+app.UseRouting();
 
 // CORS'u kullan (isteğe bağlı)
 app.UseCors("AllowAll");
 
-app.MapControllers();
+// Authentication ve Authorization middleware'lerini ekleyin
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Endpoint'leri eşleyin
+app.UseEndpoints(endpoints =>
+{
+    _ = endpoints.MapControllers();
+});
 
 app.Run();

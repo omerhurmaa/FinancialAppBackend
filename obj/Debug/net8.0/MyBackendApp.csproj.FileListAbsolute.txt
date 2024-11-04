@@ -226,3 +226,8 @@
 /Users/omer/Desktop/FinancialAppBackend/obj/Debug/net8.0/MyBackendApp.pdb
 /Users/omer/Desktop/FinancialAppBackend/obj/Debug/net8.0/MyBackendApp.genruntimeconfig.cache
 /Users/omer/Desktop/FinancialAppBackend/obj/Debug/net8.0/ref/MyBackendApp.dll
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/publish/web.config
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/publish/appsettings.Development.json
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/publish/appsettings.json
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/publish/MyBackendApp.deps.json
+/Users/omer/Desktop/FinancialAppBackend/bin/Debug/net8.0/publish/MyBackendApp.runtimeconfig.json
