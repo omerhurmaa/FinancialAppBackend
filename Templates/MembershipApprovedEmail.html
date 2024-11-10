@@ -1,7 +1,105 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Speye Mobile App</title>
+    <style>
+        /* General Styles */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .header {
+            background-color: #4CAF50; /* Customize your brand color */
+            padding: 20px;
+            text-align: center;
+        }
+        .header img {
+            max-width: 150px;
+        }
+        .content {
+            padding: 30px;
+            color: #333333;
+            text-align: center;
+        }
+        .content h2 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 25px;
+            margin: 20px 0;
+            background-color: #4CAF50;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .footer {
+            background-color: #f4f4f4;
+            padding: 20px;
+            text-align: center;
+            color: #777777;
+            font-size: 12px;
+        }
+        .app-links img {
+            width: 150px;
+            margin: 10px;
+        }
+        @media only screen and (max-width: 600px) {
+            .content, .header, .footer {
+                padding: 15px;
+            }
+            .button {
+                width: 100%;
+                text-align: center;
+            }
+            .app-links img {
+                width: 120px;
+                margin: 5px;
+            }
+        }
+    </style>
+</head>
 <body>
-    <h2>Merhaba @Model.Username,</h2>
-    <p>Üyeliğiniz onaylanmıştır. Artık platformumuza tam erişim sağlayabilirsiniz.</p>
-    <p>Teşekkürler,<br />FinancialApp Ekibi</p>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="header">
+            <img src="https://yourlogourl.com/logo.png" alt="Speye Logo">
+        </div>
+
+        <!-- Content Section -->
+        <div class="content">
+            <h2>Hello, @Model.Username!</h2>
+            <p>Welcome to the Speye Mobile App. Your membership has been approved, and you now have access to all our financial features.</p>
+            <p>Download the app to manage your financial transactions easily and efficiently.</p>
+            <div class="app-links">
+                <a href="https://apps.apple.com/app/idXXXXXXXXX"><img src="https://yourimagelink.com/app-store.png" alt="Download on the App Store"></a>
+                <a href="https://play.google.com/store/apps/details?id=XXXXXXXXX"><img src="https://yourimagelink.com/google-play.png" alt="Get it on Google Play"></a>
+            </div>
+            <a href="https://yourappurl.com/login" class="button">Log In to Your Account</a>
+            <p>If you have any questions or need assistance, feel free to reach out to our support team.</p>
+            <p>Thank you,<br />Speye Technical Support Team</p>
+        </div>
+
+        <!-- Footer Section -->
+        <div class="footer">
+            <p>&copy; 2024 Speye. All rights reserved.</p>
+            <p>Trakya University, Applied Science Faculty | Edirne, Turkiye</p>
+            <p><a href="#" style="color: #4CAF50; text-decoration: none;">Unsubscribe</a> | <a href="#" style="color: #4CAF50; text-decoration: none;">Privacy Policy</a></p>
+        </div>
+    </div>
 </body>
 </html>

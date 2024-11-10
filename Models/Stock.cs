@@ -11,8 +11,8 @@ namespace MyBackendApp.Models
         public string Symbol { get; set; } = string.Empty; // Hisse Sembolü
         public string Name { get; set; } = string.Empty; // Hisse Adı
         public decimal PurchasePrice { get; set; } // Alış Fiyatı
-        public decimal? SalePrice { get; set; } // Satış Fiyatı (opsiyonel)
-        public bool IsVisible { get; set; } = true; // Yumuşak silme
+        //public decimal? SalePrice { get; set; } // Satış Fiyatı (opsiyonel)
+        //public bool IsVisible { get; set; } = true; // Yumuşak silme
         public DateTime? LastPriceRequestDate { get; set; } // Son Fiyat İstek Tarihi
 
         // Navigasyon Özelliği

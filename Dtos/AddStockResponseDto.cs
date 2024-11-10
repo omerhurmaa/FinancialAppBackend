@@ -1,7 +1,7 @@
 
 using MyBackendApp.Dtos;
 
-    namespace MyBackendApp.Dtos
+namespace MyBackendApp.Dtos
 {
     public class AddStockResponseDto
     {

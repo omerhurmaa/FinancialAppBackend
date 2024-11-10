@@ -12,6 +12,12 @@ namespace MyBackendApp.Data
         public DbSet<PasswordResetRequest> PasswordResetRequests { get; set; }
         public DbSet<Goal> Goals { get; set; }
         public DbSet<Wishlist> Wishlists { get; set; }
+        // Data/AppDbContext.cs
+        public DbSet<DeletedStock> DeletedStocks { get; set; }
+        // Data/AppDbContext.cs
+        public DbSet<TransactionHistory> TransactionHistories { get; set; }
+
+
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {

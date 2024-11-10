@@ -23,11 +23,9 @@ namespace MyBackendApp.Controllers
             _logger = logger;
         }
         #region GET getir
-        // GET: api/Stock
         [HttpGet]
         public async Task<IActionResult> GetUserStocks()
         {
-            // JWT claim'lerinden kullanıcı ID'sini al
             var userId = GetUserIdFromToken();
             if (userId == null)
             {
@@ -35,7 +33,7 @@ namespace MyBackendApp.Controllers
             }
 
             var stocks = await _context.Stocks
-                .Where(s => s.UserId == userId.Value && s.IsVisible)
+                .Where(s => s.UserId == userId.Value)
                 .ToListAsync();
 
             var stockDtos = stocks.Select(stock => new StockDto
@@ -45,18 +43,17 @@ namespace MyBackendApp.Controllers
                 Quantity = stock.Quantity,
                 Symbol = stock.Symbol,
                 Name = stock.Name,
-                PurchasePrice = stock.PurchasePrice, // Alış fiyatını ekledik
-                SalePrice = stock.SalePrice,
-                IsVisible = stock.IsVisible,
-                CurrentPrice = null, // Anlık fiyatı null olarak ayarladık
-                LastPriceRequestDate = null // Bu alanı da null yapabilirsiniz veya DTO'dan kaldırabilirsiniz
+                PurchasePrice = stock.PurchasePrice,
+                //SalePrice = stock.SalePrice,
+                //IsVisible = stock.IsVisible,
+                CurrentPrice = null,
+                LastPriceRequestDate = null
             }).ToList();
 
             return Ok(stockDtos);
         }
         #endregion
         #region POST add
-        // POST: api/Stock
         [HttpPost]
         public async Task<IActionResult> AddStock([FromBody] AddStockDto addStockDto)
         {
@@ -71,78 +68,108 @@ namespace MyBackendApp.Controllers
                 return Unauthorized("Geçersiz kullanıcı kimliği.");
             }
 
-            // İşlemleri bir transaction içerisinde gerçekleştirin
             using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
-                // Yeni hisseyi oluştur
-                var newStock = new Stock
+                var existingStock = await _context.Stocks
+                    .FirstOrDefaultAsync(s => s.UserId == userId.Value && s.Symbol == addStockDto.Symbol);
+
+                if (existingStock != null)
                 {
-                    PurchaseDate = addStockDto.PurchaseDate,
-                    Quantity = addStockDto.Quantity,
-                    Symbol = addStockDto.Symbol,
-                    Name = addStockDto.Name,
-                    PurchasePrice = addStockDto.PurchasePrice, // Alış fiyatını ekledik
-                    UserId = userId.Value // Kullanıcı ID'sini burada ilişkilendiriyoruz
-                };
+                    // Mevcut hisse senedi için miktar ve ağırlıklı ortalama fiyatı güncelle
+                    decimal totalCost = existingStock.Quantity * existingStock.PurchasePrice + addStockDto.Quantity * addStockDto.PurchasePrice;
+                    int totalQuantity = existingStock.Quantity + addStockDto.Quantity;
+                    existingStock.PurchasePrice = totalCost / totalQuantity;
+                    existingStock.Quantity = totalQuantity;
 
-                _context.Stocks.Add(newStock);
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Hisse başarıyla eklendi. Hisse ID: {newStock.Id}, Kullanıcı ID: {newStock.UserId}");
-
-                // Wishlist'te aynı sembolü kontrol et
-                var wishlistItem = await _context.Wishlists
-                    .FirstOrDefaultAsync(w => w.UserId == userId.Value && w.Symbol.ToLower() == addStockDto.Symbol.ToLower());
-
-                bool wishlistRemoved = false;
-                WishlistRemovedDetails? removedDetails = null; // Yeni eklenen detaylar için
-
-                if (wishlistItem != null)
+                    _context.Stocks.Update(existingStock);
+                }
+                else
                 {
-                    // Kaldırılacak wishlist öğesinin detaylarını al
-                    removedDetails = new WishlistRemovedDetails
+                    // Yeni hisse senedini ekle
+                    var newStock = new Stock
                     {
-                        AddedAt = wishlistItem.AddedAt,
-                        PriceAtAddition = wishlistItem.PriceAtAddition
+                        PurchaseDate = addStockDto.PurchaseDate,
+                        Quantity = addStockDto.Quantity,
+                        Symbol = addStockDto.Symbol!,
+                        Name = addStockDto.Name!,
+                        PurchasePrice = addStockDto.PurchasePrice,
+                        UserId = userId.Value
                     };
-
-                    _context.Wishlists.Remove(wishlistItem);
-                    await _context.SaveChangesAsync();
-                    wishlistRemoved = true;
-
-                    _logger.LogInformation($"Wishlist'ten hisse kaldırıldı. Wishlist ID: {wishlistItem.Id}, Kullanıcı ID: {wishlistItem.UserId}");
+                    _context.Stocks.Add(newStock);
                 }
 
-                // Transaction'ı onayla
+                await _context.SaveChangesAsync();
+
+                // İşlem kaydı ekle
+                var purchaseTransaction = new TransactionHistory
+                {
+                    StockId = existingStock?.Id ?? 0,
+                    UserId = userId.Value,
+                    IsPurchase = true,
+                    TransactionDate = DateTime.UtcNow,
+                    Quantity = addStockDto.Quantity,
+                    PricePerUnit = addStockDto.PurchasePrice,
+                    Platform = addStockDto.Platform!
+                };
+                _context.TransactionHistories.Add(purchaseTransaction);
+                await _context.SaveChangesAsync();
+
                 await transaction.CommitAsync();
 
-                return Ok(new
-                {
-                    message = "Hisse başarıyla eklendi.",
-                    stockId = newStock.Id,
-                    wishlistRemoved = wishlistRemoved,
-                    removedWishlistItem = removedDetails // Detayları ekleyin
-                });
+                return Ok(new { message = "Hisse başarıyla eklendi veya güncellendi." });
             }
             catch (Exception ex)
             {
-                // Hata durumunda transaction'ı geri al
                 await transaction.RollbackAsync();
                 _logger.LogError($"Hisse eklenirken hata oluştu: {ex.Message}");
                 return StatusCode(500, "Hisse eklenirken bir hata oluştu.");
             }
         }
         #endregion
-        #region PUT değiştir
-        // PUT: api/Stock/{id}
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateStock(int id, [FromBody] UpdateStockDto updateStockDto)
+        // #region PUT değiştir
+        // // PUT: api/Stock/{id}
+        // [HttpPut("{id}")]
+        // public async Task<IActionResult> UpdateStock(int id, [FromBody] UpdateStockDto updateStockDto)
+        // {
+        //     if (updateStockDto == null || id != updateStockDto.Id)
+        //     {
+        //         return BadRequest("Hisse ID uyuşmuyor veya geçersiz güncelleme verisi.");
+        //     }
+
+        //     var userId = GetUserIdFromToken();
+        //     if (userId == null)
+        //     {
+        //         return Unauthorized("Geçersiz kullanıcı kimliği.");
+        //     }
+
+        //     var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value);
+
+        //     if (stock == null || !stock.IsVisible)
+        //     {
+        //         return NotFound("Hisse bulunamadı.");
+        //     }
+
+        //     stock.Quantity = updateStockDto.Quantity;
+        //     stock.SalePrice = updateStockDto.SalePrice;
+        //     stock.PurchasePrice = updateStockDto.PurchasePrice; // Alış fiyatını güncelledik
+
+        //     _context.Stocks.Update(stock);
+        //     await _context.SaveChangesAsync();
+
+        //     _logger.LogInformation($"Hisse başarıyla güncellendi. Hisse ID: {stock.Id}, Kullanıcı ID: {stock.UserId}");
+
+        //     return Ok(new { message = "Hisse başarıyla güncellendi." });
+        // }
+        // #endregion
+        #region Sale
+        [HttpPost("sell")]
+        public async Task<IActionResult> SellStock([FromBody] SellStockDto sellStockDto)
         {
-            if (updateStockDto == null || id != updateStockDto.Id)
+            if (sellStockDto == null)
             {
-                return BadRequest("Hisse ID uyuşmuyor veya geçersiz güncelleme verisi.");
+                return BadRequest("Geçersiz satış verisi.");
             }
 
             var userId = GetUserIdFromToken();
@@ -151,27 +178,67 @@ namespace MyBackendApp.Controllers
                 return Unauthorized("Geçersiz kullanıcı kimliği.");
             }
 
-            var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value);
+            var stock = await _context.Stocks
+                .FirstOrDefaultAsync(s => s.Id == sellStockDto.StockId && s.UserId == userId.Value);
 
-            if (stock == null || !stock.IsVisible)
+            if (stock == null || stock.Quantity < sellStockDto.Quantity)
             {
-                return NotFound("Hisse bulunamadı.");
+                return BadRequest("Yetersiz hisse adedi veya geçersiz hisse.");
             }
 
-            stock.Quantity = updateStockDto.Quantity;
-            stock.SalePrice = updateStockDto.SalePrice;
-            stock.PurchasePrice = updateStockDto.PurchasePrice; // Alış fiyatını güncelledik
+            // Calculate total sale amount and profit/loss
+            decimal totalSaleAmount = sellStockDto.Quantity * sellStockDto.SalePrice;
+            decimal profitOrLoss = (sellStockDto.SalePrice - stock.PurchasePrice) * sellStockDto.Quantity;
 
-            _context.Stocks.Update(stock);
-            await _context.SaveChangesAsync();
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _logger.LogInformation($"Hisse başarıyla güncellendi. Hisse ID: {stock.Id}, Kullanıcı ID: {stock.UserId}");
+            try
+            {
+                // Update stock quantity
+                stock.Quantity -= sellStockDto.Quantity;
 
-            return Ok(new { message = "Hisse başarıyla güncellendi." });
+                // Add sale record to TransactionHistory
+                var saleTransaction = new TransactionHistory
+                {
+                    StockId = stock.Id,
+                    UserId = userId.Value,
+                    IsPurchase = false, // Sale transaction
+                    TransactionDate = DateTime.UtcNow,
+                    Quantity = sellStockDto.Quantity,
+                    PricePerUnit = sellStockDto.SalePrice,
+                    TotalSaleAmount = totalSaleAmount,
+                    ProfitOrLoss = profitOrLoss
+                };
+                _context.TransactionHistories.Add(saleTransaction);
+                await _context.SaveChangesAsync();
+
+                // Commit transaction
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    message = "Satış işlemi başarıyla tamamlandı.",
+                    saleDetails = new
+                    {
+                        Quantity = sellStockDto.Quantity,
+                        SalePrice = sellStockDto.SalePrice,
+                        TotalSaleAmount = totalSaleAmount,
+                        ProfitOrLoss = profitOrLoss
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError($"Satış işlemi sırasında hata oluştu: {ex.Message}");
+                return StatusCode(500, "Satış işlemi sırasında bir hata oluştu.");
+            }
         }
-        #endregion
+
+        #endregion 
         #region DEL sil
         // DELETE: api/Stock/{id}
+        // Controllers/StockController.cs
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteStock(int id)
         {
@@ -181,16 +248,27 @@ namespace MyBackendApp.Controllers
                 return Unauthorized("Geçersiz kullanıcı kimliği.");
             }
 
+            // Find the stock for the given user and ID
             var stock = await _context.Stocks.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId.Value);
 
-            if (stock == null || !stock.IsVisible)
+            if (stock == null)
             {
                 return NotFound("Hisse bulunamadı.");
             }
 
-            // Yumuşak silme işlemi
-            stock.IsVisible = false;
-            _context.Stocks.Update(stock);
+            // Log deletion in the DeletedStocks table
+            var deletedStock = new DeletedStock
+            {
+                StockId = stock.Id,
+                UserId = userId.Value,
+                Quantity = stock.Quantity,
+                Symbol = stock.Symbol,
+                Name = stock.Name
+            };
+            _context.DeletedStocks.Add(deletedStock);
+
+            // Remove the stock from the Stocks table
+            _context.Stocks.Remove(stock);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation($"Hisse başarıyla silindi. Hisse ID: {stock.Id}, Kullanıcı ID: {userId}");
@@ -198,15 +276,6 @@ namespace MyBackendApp.Controllers
             return Ok(new { message = "Hisse başarıyla silindi." });
         }
         #endregion
-
-        // // JSON yanıtını eşlemek için sınıf
-        // private class StockPriceResponse
-        // {
-        //     public string Symbol { get; set; } = string.Empty;
-        //     public decimal CurrentPrice { get; set; }
-        // }
-
-        // Yeni eklenen sınıf: Wishlist kaldırma detayları
 
         #region Helper Methods
         private class WishlistRemovedDetails
