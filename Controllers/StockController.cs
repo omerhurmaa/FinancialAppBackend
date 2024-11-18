@@ -99,7 +99,7 @@ namespace MyBackendApp.Controllers
                     };
 
                     _context.Stocks.Add(newStock);
-                    await _context.SaveChangesAsync();  // Hisseyi kaydediyoruz ki ID oluşsun
+                    await _context.SaveChangesAsync();  
 
                     // Yeni oluşturulan hisseyi al
                     existingStock = newStock;
