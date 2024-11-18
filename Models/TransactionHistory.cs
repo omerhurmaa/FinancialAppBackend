@@ -11,13 +11,17 @@ namespace MyBackendApp.Models
         public int Quantity { get; set; }
         public decimal PricePerUnit { get; set; }
         public string Platform { get; set; } = string.Empty; // Applicable for purchase transactions
+        public string? Name { get; set;} 
+        public string? Symbol { get; set;}
 
         // Sale-specific fields
         public decimal? TotalSaleAmount { get; set; } // Sale price for sale transactions
-        public decimal? ProfitOrLoss { get; set; } // Calculated profit or loss
+        public string? ProfitOrLoss { get; set; } // Calculated profit or loss
+        public string? Gain {get; set;}
 
         // Navigation properties
         public Stock? Stock { get; set; }
         public User? User { get; set; }
+
     }
 }

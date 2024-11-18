@@ -24,8 +24,11 @@ namespace MyBackendApp.Models
 
         public string? GoogleId { get; set; }
 
+
         public ICollection<Stock> Stocks { get; set; } = new List<Stock>();
         public ICollection<Wishlist> Wishlists { get; set; } = new List<Wishlist>();
+    
+
 
         public Goal? Goal { get; set; } // Her kullanıcının tek bir hedefi var
     }

@@ -97,24 +97,31 @@ namespace MyBackendApp.Controllers
                         PurchasePrice = addStockDto.PurchasePrice,
                         UserId = userId.Value
                     };
+
                     _context.Stocks.Add(newStock);
+                    await _context.SaveChangesAsync();  // Hisseyi kaydediyoruz ki ID oluşsun
+
+                    // Yeni oluşturulan hisseyi al
+                    existingStock = newStock;
                 }
 
-                await _context.SaveChangesAsync();
-
-                // İşlem kaydı ekle
+                // İşlem kaydını ekle
                 var purchaseTransaction = new TransactionHistory
                 {
-                    StockId = existingStock?.Id ?? 0,
+                    StockId = existingStock.Id,  // Artık geçerli olan StockId
                     UserId = userId.Value,
                     IsPurchase = true,
                     TransactionDate = DateTime.UtcNow,
                     Quantity = addStockDto.Quantity,
                     PricePerUnit = addStockDto.PurchasePrice,
-                    Platform = addStockDto.Platform!
+                    Platform = addStockDto.Platform!,
+                    Name = addStockDto.Name,
+                    Symbol = addStockDto.Symbol
+
                 };
+
                 _context.TransactionHistories.Add(purchaseTransaction);
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();  // İşlem kaydını kaydediyoruz
 
                 await transaction.CommitAsync();
 
@@ -127,6 +134,7 @@ namespace MyBackendApp.Controllers
                 return StatusCode(500, "Hisse eklenirken bir hata oluştu.");
             }
         }
+
         #endregion
         // #region PUT değiştir
         // // PUT: api/Stock/{id}
@@ -188,7 +196,11 @@ namespace MyBackendApp.Controllers
 
             // Calculate total sale amount and profit/loss
             decimal totalSaleAmount = sellStockDto.Quantity * sellStockDto.SalePrice;
-            decimal profitOrLoss = (sellStockDto.SalePrice - stock.PurchasePrice) * sellStockDto.Quantity;
+            decimal profitOrLossPercent = (sellStockDto.SalePrice - stock.PurchasePrice) / stock.PurchasePrice * 100;
+            decimal profitOrLossDecimal = (sellStockDto.SalePrice - stock.PurchasePrice) * sellStockDto.Quantity;
+            //string profitOrLoss = profitOrLossPercent.ToString("F2") + "% (" + profitOrLossDecimal.ToString("F2") + ")";
+            string profitOrLoss = profitOrLossPercent.ToString("F2");
+            string gain = profitOrLossDecimal.ToString("F2");
 
             using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -207,10 +219,24 @@ namespace MyBackendApp.Controllers
                     Quantity = sellStockDto.Quantity,
                     PricePerUnit = sellStockDto.SalePrice,
                     TotalSaleAmount = totalSaleAmount,
-                    ProfitOrLoss = profitOrLoss
+                    ProfitOrLoss = profitOrLoss,
+                    Gain = gain,
+                    Symbol = stock.Symbol,
+                    Name = stock.Name
+                    
                 };
                 _context.TransactionHistories.Add(saleTransaction);
                 await _context.SaveChangesAsync();
+
+                // Commit transaction
+
+                if (stock.Quantity == 0)
+                {   
+                    stock.PurchasePrice = 0;
+
+                    //_context.Stocks.Remove(stock);
+                    await _context.SaveChangesAsync();
+                }
 
                 // Commit transaction
                 await transaction.CommitAsync();
@@ -223,9 +249,12 @@ namespace MyBackendApp.Controllers
                         Quantity = sellStockDto.Quantity,
                         SalePrice = sellStockDto.SalePrice,
                         TotalSaleAmount = totalSaleAmount,
-                        ProfitOrLoss = profitOrLoss
+                        PurchasePrice = stock.PurchasePrice,
+                        ProfitOrLoss = profitOrLoss,
+                        Gain = gain
                     }
                 });
+
             }
             catch (Exception ex)
             {

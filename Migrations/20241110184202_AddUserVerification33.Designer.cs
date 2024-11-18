@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MyBackendApp.Data;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyBackendApp.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20241110184202_AddUserVerification33")]
+    partial class AddUserVerification33
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -197,14 +200,8 @@ namespace MyBackendApp.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Gain")
-                        .HasColumnType("text");
-
                     b.Property<bool>("IsPurchase")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .HasColumnType("text");
 
                     b.Property<string>("Platform")
                         .IsRequired()
@@ -213,17 +210,14 @@ namespace MyBackendApp.Migrations
                     b.Property<decimal>("PricePerUnit")
                         .HasColumnType("numeric");
 
-                    b.Property<string>("ProfitOrLoss")
-                        .HasColumnType("text");
+                    b.Property<decimal?>("ProfitOrLoss")
+                        .HasColumnType("numeric");
 
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
 
                     b.Property<int>("StockId")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Symbol")
-                        .HasColumnType("text");
 
                     b.Property<decimal?>("TotalSaleAmount")
                         .HasColumnType("numeric");

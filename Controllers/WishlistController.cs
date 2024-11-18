@@ -49,6 +49,8 @@ namespace MyBackendApp.Controllers
         // POST: api/Wishlist
         [HttpPost]
         [Authorize]
+        [HttpPost]
+        [Authorize]
         public async Task<IActionResult> AddToWishlist([FromBody] CreateWishlistDto createWishlistDto)
         {
             if (createWishlistDto == null)
@@ -67,16 +69,17 @@ namespace MyBackendApp.Controllers
 
             _logger.LogInformation($"Adding to wishlist for User ID: {userId}");
 
-            // Check if the stock already exists in the Stocks table
-            var stockExists = await _context.Stocks
-                .AnyAsync(s => s.Symbol.ToLower() == createWishlistDto.Symbol.ToLower());
+            // Kullanıcının portföyündeki hisseyi al
+            var existingStock = await _context.Stocks
+                .FirstOrDefaultAsync(s => s.Symbol.ToLower() == createWishlistDto.Symbol.ToLower() && s.UserId == userId.Value);
 
-            if (stockExists)
+            // Eğer hisse portföyde varsa ve miktarı sıfırdan büyükse, istek listesine eklenemez
+            if (existingStock != null && existingStock.Quantity > 0)
             {
                 return BadRequest(new { message = "The stock already exists in your portfolio and cannot be added to the wishlist." });
             }
 
-            // Check if the stock is already in the wishlist
+            // Hisse zaten istek listesinde mi?
             var alreadyInWishlist = await _context.Wishlists
                 .AnyAsync(w => w.UserId == userId.Value && w.Symbol.ToLower() == createWishlistDto.Symbol.ToLower());
 

@@ -10,5 +10,6 @@ namespace MyBackendApp.Models
         public int UserId { get; set; }
         public DateTime DeletedAt { get; set; } = DateTime.UtcNow;
         public int Quantity { get; set; }
+        public User User { get; set; } = null!;
     }
 }

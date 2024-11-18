@@ -50,8 +50,9 @@ namespace MyBackendApp.Data
 
             //usera stockslarda tek symbol ata
             modelBuilder.Entity<Stock>()
-            .HasIndex(s => new { s.UserId, s.Symbol })
-            .IsUnique();
+                .HasIndex(s => new { s.UserId, s.Symbol })
+                .IsUnique();
+            
         }
 
     }

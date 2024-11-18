@@ -10,7 +10,7 @@ namespace MyBackendApp.Dtos
         public string Name { get; set; } = string.Empty;
         public decimal PurchasePrice { get; set; } // Alış Fiyatı
         public decimal? SalePrice { get; set; }
-        public bool IsVisible { get; set; }
+        //public bool IsVisible { get; set; }
         public decimal? CurrentPrice { get; set; }
         public DateTime? LastPriceRequestDate { get; set; }
     }
