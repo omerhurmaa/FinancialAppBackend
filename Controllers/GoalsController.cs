@@ -32,7 +32,7 @@ namespace MyBackendApp.Controllers
 
             _logger.LogInformation($"Fetching goal for User ID: {userId}");
 
-            var goal = await _context.Goals
+            var goal = await _context.Goals!
                 .Include(g => g.User)
                 .FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
@@ -67,7 +67,7 @@ namespace MyBackendApp.Controllers
 
             _logger.LogInformation($"Adding goal for User ID: {userId}");
 
-            var existingGoal = await _context.Goals.FirstOrDefaultAsync(g => g.UserId == userId.Value);
+            var existingGoal = await _context.Goals!.FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
             if (existingGoal != null)
             {
@@ -80,9 +80,10 @@ namespace MyBackendApp.Controllers
                 Description = createGoalDto.Description,
                 CreatedAt = DateTime.UtcNow,
                 UserId = userId.Value
+                
             };
 
-            _context.Goals.Add(goal);
+            _context.Goals!.Add(goal);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation($"Goal created with ID: {goal.Id} for User ID: {goal.UserId}");
@@ -115,7 +116,7 @@ namespace MyBackendApp.Controllers
 
             _logger.LogInformation($"Updating goal for User ID: {userId}");
 
-            var goal = await _context.Goals
+            var goal = await _context.Goals!
                 .Include(g => g.User)
                 .FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
@@ -128,7 +129,7 @@ namespace MyBackendApp.Controllers
             goal.Description = updateGoalDto.Description;
             goal.UpdatedAt = DateTime.UtcNow;
 
-            _context.Goals.Update(goal);
+            _context.Goals!.Update(goal);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation($"Goal updated with ID: {goal.Id} for User ID: {goal.UserId}");
@@ -149,14 +150,14 @@ namespace MyBackendApp.Controllers
 
             _logger.LogInformation($"Deleting goal for User ID: {userId}");
 
-            var goal = await _context.Goals.FirstOrDefaultAsync(g => g.UserId == userId.Value);
+            var goal = await _context.Goals!.FirstOrDefaultAsync(g => g.UserId == userId.Value);
 
             if (goal == null)
             {
                 return NotFound(new { message = "Goal not found." });
             }
 
-            _context.Goals.Remove(goal);
+            _context.Goals!.Remove(goal);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation($"Goal deleted with ID: {goal.Id} for User ID: {userId}");

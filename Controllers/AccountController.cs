@@ -174,7 +174,7 @@ namespace MyBackendApp.Controllers
         private async Task SendVerificationEmail(string email, string verificationCode, string username)
         {
             string htmlBody = GetEmailBody(VerificationTemplate, username, verificationCode);
-            string subject = "Hesap Doğrulama";
+            string subject = "Verify Account";
 
             await SendEmailAsync(email, username, subject, htmlBody);
         }
@@ -183,7 +183,7 @@ namespace MyBackendApp.Controllers
         private async Task SendSuccessVerificationEmail(string email, string username)
         {
             string htmlBody = GetEmailBody(MembershipApprovedTemplate, username);
-            string subject = "Hesap Doğrulama Tamamlandı";
+            string subject = "Account Verifty Completed";
 
             await SendEmailAsync(email, username, subject, htmlBody);
         }
@@ -192,7 +192,7 @@ namespace MyBackendApp.Controllers
         private async Task SendPasswordResetEmail(string email, string resetCode, string username)
         {
             string htmlBody = GetEmailBody(PasswordResetTemplate, username, resetCode);
-            string subject = "Şifre Sıfırlama Talebi";
+            string subject = "Password Reset Request";
 
             await SendEmailAsync(email, username, subject, htmlBody);
         }
@@ -201,17 +201,17 @@ namespace MyBackendApp.Controllers
         private async Task SendPasswordResetSuccessEmail(string email, string username)
         {
             string htmlBody = GetEmailBody(PasswordResetSuccessTemplate, username);
-            string subject = "Şifre Sıfırlama Başarılı";
+            string subject = "Password Reset Completed";
 
             await SendEmailAsync(email, username, subject, htmlBody);
         }
 
         #endregion
 
-        #region Kayıt, Doğrulama ve Giriş Metodları
+        
 
         // Kayıt metodu
-
+        #region  kayıt
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] User user)
         {
@@ -220,7 +220,7 @@ namespace MyBackendApp.Controllers
                 string.IsNullOrWhiteSpace(user.Email) ||
                 string.IsNullOrWhiteSpace(user.Password))
             {
-                return BadRequest(new { error = "Kullanıcı adı, e-posta ve şifre doldurulması zorunludur." });
+                return BadRequest(new { error = "It is mandatory to fill in username, e-mail and password." });
             }
 
             // 2. Mevcut Kullanıcıları Kontrol Etme
@@ -238,11 +238,11 @@ namespace MyBackendApp.Controllers
                 {
                     if (!string.IsNullOrEmpty(existingUser.GoogleId))
                     {
-                        return Unauthorized(new { error = "Hesabınıza Google ile giriş yapabilirsiniz." });
+                        return Unauthorized(new { error = "You must log in to your account with Google." });
                     }
                     else
                     {
-                        return BadRequest(new { error = "Kullanıcı adı veya e-posta zaten kullanımda." });
+                        return BadRequest(new { error = "The username or email is already in use." });
                     }
                 }
                 else
@@ -272,7 +272,7 @@ namespace MyBackendApp.Controllers
 
                         await SendVerificationEmail(newPendingUser.Email!, newPendingUser.VerificationCode, newPendingUser.Username);
 
-                        return Ok(new { message = "Doğrulama kodu yeniden gönderildi. Lütfen e-postanızı kontrol edin." });
+                        return Ok(new { message = "The verification code has been resent. Please check your email." });
                     }
                 }
             }
@@ -311,11 +311,12 @@ namespace MyBackendApp.Controllers
             return Ok(new
             {
                 user = userDto,
-                message = "Doğrulama Kodu Gönderildi."
+                message = "Verification Code Sent."
             });
 
         }
-
+        #endregion
+        #region verify
         // Doğrulama metodu
         [HttpPost("verify")]
         public async Task<IActionResult> Verify([FromBody] VerificationDto verificationDto)
@@ -324,24 +325,24 @@ namespace MyBackendApp.Controllers
 
             if (pendingUser == null)
             {
-                return BadRequest(new { error = "Kullanıcı bulunamadı veya zaten doğrulanmış." });
+                return BadRequest(new { error = "User not found or already verified." });
             }
 
             // Doğrulama kodunun 3 dakika geçerli olup olmadığını kontrol edin
             if (!pendingUser.VerificationCodeGeneratedAt.HasValue)
             {
-                return BadRequest(new { error = "Doğrulama kodu oluşturulmamış." });
+                return BadRequest(new { error = "The verification code has not been generated." });
             }
 
             var timeSinceLastCode = DateTime.UtcNow - pendingUser.VerificationCodeGeneratedAt.Value;
             if (timeSinceLastCode > TimeSpan.FromMinutes(3))
             {
-                return BadRequest(new { error = "Doğrulama kodu süresi doldu. Yeni bir doğrulama kodu isteyin." });
+                return BadRequest(new { error = "Verification code has expired. Request a new verification code." });
             }
 
             if (pendingUser.VerificationCode != verificationDto.VerificationCode)
             {
-                return BadRequest(new { error = "Geçersiz doğrulama kodu." });
+                return BadRequest(new { error = "Verification code has expired. Request a new verification code." });
             }
 
             // Doğrulama başarılı, kullanıcıyı User tablosuna taşı
@@ -378,9 +379,8 @@ namespace MyBackendApp.Controllers
 
             return Ok(userDto);
         }
-
-
-
+        #endregion 
+        #region login
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
@@ -388,7 +388,7 @@ namespace MyBackendApp.Controllers
             // 1. DTO Doğrulama
             if (loginDto == null)
             {
-                return BadRequest(new { error = "Geçersiz istek verisi." });
+                return BadRequest(new { error = "Invalid request data." });
             }
 
             if (!ModelState.IsValid)
@@ -418,7 +418,7 @@ namespace MyBackendApp.Controllers
                     // Doğrulama E-postasını Gönderme
                     await SendVerificationEmail(pendingUser.Email!, pendingUser.VerificationCode, pendingUser.Username);
 
-                    _logger.LogInformation("Yeni doğrulama kodu gönderildi. Email: {Email}", pendingUser.Email);
+                    _logger.LogInformation("New verification code has been sent. E-mail: {Email}", pendingUser.Email);
 
                     // 2.2. Yanıtı Döndürme
                     var responseUserDto = new UserDto
@@ -431,7 +431,7 @@ namespace MyBackendApp.Controllers
                     return Ok(new
                     {
                         user = responseUserDto,
-                        message = "Hesabınız doğrulanmamış. Doğrulama kodu gönderildi. Lütfen e-postanızı kontrol edin."
+                        message = "Your account is not verified. Verification code has been sent. Please check your email."
                     });
                 }
                 else
@@ -444,7 +444,7 @@ namespace MyBackendApp.Controllers
                         int remainingMinutes = (int)Math.Floor(remainingTime.TotalMinutes);
                         int remainingSeconds = (int)(remainingTime.TotalSeconds % 60);
 
-                        _logger.LogInformation("Doğrulama kodu henüz yeniden gönderilemez. Kalan süre: {Minutes} dakika {Seconds} saniye.", remainingMinutes, remainingSeconds);
+                        _logger.LogInformation("The verification code cannot be resent yet. Remaining time: {Minutes} minutes {Seconds} seconds.", remainingMinutes, remainingSeconds);
 
                         var responseUserDto = new UserDto
                         {
@@ -456,7 +456,7 @@ namespace MyBackendApp.Controllers
                         return Ok(new
                         {
                             user = responseUserDto,
-                            message = $"Hesabınız doğrulanmamış. Lütfen e-postanızı kontrol edin. Doğrulama kodunu yeniden göndermek için {remainingMinutes} dakika {remainingSeconds} saniye bekleyin."
+                            message = $"Your account is not verified. Please check your email. Wait {remainingMinutes} minutes {remainingSeconds} seconds to resend the verification code."
                         });
                     }
                 }
@@ -468,20 +468,20 @@ namespace MyBackendApp.Controllers
 
             if (user == null)
             {
-                return Unauthorized(new { error = "Geçersiz kullanıcı adı veya şifre." });
+                return Unauthorized(new { error = "Invalid username or password" });
             }
 
             // 4. Google ile Giriş Yapmış Kullanıcıları Kontrol Etme
             if (!string.IsNullOrEmpty(user.GoogleId))
             {
-                return Unauthorized(new { error = "Hesabınıza Google ile giriş yapabilirsiniz." });
+                return Unauthorized(new { error = "You must log in to your account with Google." });
             }
 
             // 5. Şifre Doğrulaması
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(loginDto.Password, user.Password);
             if (!isPasswordValid)
             {
-                return Unauthorized(new { error = "Geçersiz kullanıcı adı veya şifre." });
+                return Unauthorized(new { error = "Invalid username or password." });
             }
 
             // 6. LastSignIn Güncelleme
@@ -506,7 +506,7 @@ namespace MyBackendApp.Controllers
             return Ok(new
             {
                 user = userDtoVerified,
-                message = "Giriş başarılı."
+                message = "Login successful."
             });
         }
 
@@ -521,22 +521,22 @@ namespace MyBackendApp.Controllers
         {
             if (string.IsNullOrWhiteSpace(forgotPasswordDto.Email))
             {
-                return BadRequest(new { error = "E-posta adresi gereklidir." });
+                return BadRequest(new { error = "Email address is required." });
             }
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == forgotPasswordDto.Email);
             if (user == null)
             {
                 // E-posta var olup olmadığını gizlemek için her zaman başarılı bir yanıt döndürün
-                _logger.LogWarning($"Şifre sıfırlama talebi: {forgotPasswordDto.Email} bulunamadı.");
-                return Ok(new { message = "Şifre sıfırlama talimatları e-posta adresinize gönderildi." });
+                _logger.LogWarning($"Password reset request: {forgotPasswordDto.Email} not found.");
+                return Ok(new { message = "Password reset instructions have been sent to your email address." });
             }
 
             // Şifre sıfırlama kodu oluştur
             string resetCode = GeneratePasswordResetCode();
 
             // Şifre sıfırlama talebini oluştur veya güncelle
-            var passwordResetRequest = await _context.PasswordResetRequests
+            var passwordResetRequest = await _context.PasswordResetRequests!
                 .FirstOrDefaultAsync(pr => pr.Email == forgotPasswordDto.Email && pr.UsedAt == null);
 
             if (passwordResetRequest != null)
@@ -544,7 +544,7 @@ namespace MyBackendApp.Controllers
                 // Mevcut talebi güncelle
                 passwordResetRequest.ResetCode = resetCode;
                 passwordResetRequest.CodeGeneratedAt = DateTime.UtcNow;
-                _context.PasswordResetRequests.Update(passwordResetRequest);
+                _context.PasswordResetRequests!.Update(passwordResetRequest);
             }
             else
             {
@@ -555,7 +555,7 @@ namespace MyBackendApp.Controllers
                     ResetCode = resetCode,
                     CodeGeneratedAt = DateTime.UtcNow
                 };
-                _context.PasswordResetRequests.Add(passwordResetRequest);
+                _context.PasswordResetRequests!.Add(passwordResetRequest);
             }
 
             await _context.SaveChangesAsync();
@@ -563,7 +563,7 @@ namespace MyBackendApp.Controllers
             // Şifre sıfırlama e-postasını gönder
             await SendPasswordResetEmail(user.Email!, resetCode, user.Username);
 
-            return Ok(new { message = "Şifre sıfırlama talimatları e-posta adresinize gönderildi." });
+            return Ok(new { message = "Password reset instructions have been sent to your email address." });
         }
 
         //Şifre Sıfırlama Endpoint'i
@@ -574,28 +574,28 @@ namespace MyBackendApp.Controllers
                 string.IsNullOrWhiteSpace(resetPasswordDto.ResetCode) ||
                 string.IsNullOrWhiteSpace(resetPasswordDto.NewPassword))
             {
-                return BadRequest(new { error = "E-posta, doğrulama kodu ve yeni şifre gereklidir." });
+                return BadRequest(new { error = "Email, verification code and new password are required." });
             }
 
-            var passwordResetRequest = await _context.PasswordResetRequests
+            var passwordResetRequest = await _context.PasswordResetRequests!
                 .FirstOrDefaultAsync(pr => pr.Email == resetPasswordDto.Email && pr.ResetCode == resetPasswordDto.ResetCode && pr.UsedAt == null);
 
             if (passwordResetRequest == null)
             {
-                return BadRequest(new { error = "Geçersiz doğrulama kodu veya e-posta." });
+                return BadRequest(new { error = "Invalid verification code or email." });
             }
 
             // Doğrulama kodunun geçerlilik süresini kontrol et (örneğin, 15 dakika)
             if ((DateTime.UtcNow - passwordResetRequest.CodeGeneratedAt).TotalMinutes > 15)
             {
-                return BadRequest(new { error = "Doğrulama kodunun süresi doldu. Yeni bir şifre sıfırlama talebi oluşturun." });
+                return BadRequest(new { error = "The verification code has expired. Create a new password reset request." });
             }
 
             // Kullanıcıyı bul
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == resetPasswordDto.Email);
             if (user == null)
             {
-                return BadRequest(new { error = "Kullanıcı bulunamadı." });
+                return BadRequest(new { error = "User not found." });
             }
 
             // Kullanıcının şifresini güncelle
@@ -604,14 +604,14 @@ namespace MyBackendApp.Controllers
 
             // Şifre sıfırlama talebini kullanılmış olarak işaretle
             passwordResetRequest.UsedAt = DateTime.UtcNow;
-            _context.PasswordResetRequests.Update(passwordResetRequest);
+            _context.PasswordResetRequests!.Update(passwordResetRequest);
 
             await _context.SaveChangesAsync();
 
             // Şifre sıfırlama başarı e-postasını gönder
             await SendPasswordResetSuccessEmail(user.Email!, user.Username);
 
-            return Ok(new { message = "Şifreniz başarıyla sıfırlandı." });
+            return Ok(new { message = "Your password has been successfully reset." });
         }
 
         #endregion

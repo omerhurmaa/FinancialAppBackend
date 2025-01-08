@@ -6,16 +6,16 @@ namespace MyBackendApp.Data
 {
     public class AppDbContext : DbContext
     {
-        public DbSet<User> Users { get; set; } = null!;
+        public DbSet<User> Users { get; set; } =null!;
         public DbSet<PendingUser> PendingUsers { get; set; } = null!;
         public DbSet<Stock> Stocks { get; set; } = null!; // 
-        public DbSet<PasswordResetRequest> PasswordResetRequests { get; set; }
-        public DbSet<Goal> Goals { get; set; }
-        public DbSet<Wishlist> Wishlists { get; set; }
+        public DbSet<PasswordResetRequest>? PasswordResetRequests { get; set; } = null!;
+        public DbSet<Goal> Goals { get; set; } = null!;
+        public DbSet<Wishlist> Wishlists { get; set; } = null!;
         // Data/AppDbContext.cs
-        public DbSet<DeletedStock> DeletedStocks { get; set; }
+        public DbSet<DeletedStock> DeletedStocks { get; set; }=null!;
         // Data/AppDbContext.cs
-        public DbSet<TransactionHistory> TransactionHistories { get; set; }
+        public DbSet<TransactionHistory> TransactionHistories { get; set; }=null!;
 
 
 

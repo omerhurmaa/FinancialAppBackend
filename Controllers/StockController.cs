@@ -29,8 +29,9 @@ namespace MyBackendApp.Controllers
             var userId = GetUserIdFromToken();
             if (userId == null)
             {
-                return Unauthorized("Geçersiz kullanıcı kimliği.");
+                return Unauthorized("Invalid user identity.");
             }
+            
 
             var stocks = await _context.Stocks
                 .Where(s => s.UserId == userId.Value)
@@ -50,6 +51,11 @@ namespace MyBackendApp.Controllers
                 LastPriceRequestDate = null
             }).ToList();
 
+            // if (stockDtos == null)
+            // {
+            //     return Ok("Stock list is empty");
+            // }
+
             return Ok(stockDtos);
         }
         #endregion
@@ -59,13 +65,13 @@ namespace MyBackendApp.Controllers
         {
             if (addStockDto == null)
             {
-                return BadRequest("Geçersiz hisse verisi.");
+                return BadRequest("Invalid stock data.");
             }
 
             var userId = GetUserIdFromToken();
             if (userId == null)
             {
-                return Unauthorized("Geçersiz kullanıcı kimliği.");
+                return Unauthorized("Invalid user identity.");
             }
 
             using var transaction = await _context.Database.BeginTransactionAsync();
@@ -99,10 +105,30 @@ namespace MyBackendApp.Controllers
                     };
 
                     _context.Stocks.Add(newStock);
-                    await _context.SaveChangesAsync();  
+                    await _context.SaveChangesAsync();
 
                     // Yeni oluşturulan hisseyi al
                     existingStock = newStock;
+                }
+
+                // Wishlist kontrolü
+                var wishlistItem = await _context.Wishlists!
+                    .FirstOrDefaultAsync(w => w.UserId == userId.Value && w.Symbol == addStockDto.Symbol);
+
+                if (wishlistItem != null)
+                {
+                    // Wishlist'ten kaldır
+                    _context.Wishlists!.Remove(wishlistItem);
+
+                    // Mesajı döndür
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+                    return Ok(new
+                    {
+                        message = $"The stock has been added successfully. Removed {wishlistItem.Symbol} from Wishlist.",
+                        wishlistRemoved = true,
+                        wishlistPrice = wishlistItem.PriceAtAddition
+                    });
                 }
 
                 // İşlem kaydını ekle
@@ -117,26 +143,25 @@ namespace MyBackendApp.Controllers
                     Platform = addStockDto.Platform!,
                     Name = addStockDto.Name,
                     Symbol = addStockDto.Symbol
-
                 };
 
-                _context.TransactionHistories.Add(purchaseTransaction);
-                await _context.SaveChangesAsync();  // İşlem kaydını kaydediyoruz
+                _context.TransactionHistories!.Add(purchaseTransaction);
+                await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
 
-                return Ok(new { message = "Hisse başarıyla eklendi veya güncellendi." });
+                return Ok(new { message = "The stock has been added successfully.", wishlistRemoved = false });
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError($"Hisse eklenirken hata oluştu: {ex.Message}");
-                return StatusCode(500, "Hisse eklenirken bir hata oluştu.");
+                _logger.LogError($"An error occurred while adding stock:{ex.Message}");
+                return StatusCode(500, "An error occurred while adding stock.");
             }
         }
 
         #endregion
-        // #region PUT değiştir
+        #region PUT değiştir
         // // PUT: api/Stock/{id}
         // [HttpPut("{id}")]
         // public async Task<IActionResult> UpdateStock(int id, [FromBody] UpdateStockDto updateStockDto)
@@ -170,20 +195,20 @@ namespace MyBackendApp.Controllers
 
         //     return Ok(new { message = "Hisse başarıyla güncellendi." });
         // }
-        // #endregion
+        #endregion
         #region Sale
         [HttpPost("sell")]
         public async Task<IActionResult> SellStock([FromBody] SellStockDto sellStockDto)
         {
             if (sellStockDto == null)
             {
-                return BadRequest("Geçersiz satış verisi.");
+                return BadRequest("Invalid sale data.");
             }
 
             var userId = GetUserIdFromToken();
             if (userId == null)
             {
-                return Unauthorized("Geçersiz kullanıcı kimliği.");
+                return Unauthorized("Invalid user identity.");
             }
 
             var stock = await _context.Stocks
@@ -191,7 +216,7 @@ namespace MyBackendApp.Controllers
 
             if (stock == null || stock.Quantity < sellStockDto.Quantity)
             {
-                return BadRequest("Yetersiz hisse adedi veya geçersiz hisse.");
+                return BadRequest("Insufficient number of stock or invalid stock.");
             }
 
             // Calculate total sale amount and profit/loss
@@ -223,15 +248,15 @@ namespace MyBackendApp.Controllers
                     Gain = gain,
                     Symbol = stock.Symbol,
                     Name = stock.Name
-                    
+
                 };
-                _context.TransactionHistories.Add(saleTransaction);
+                _context.TransactionHistories!.Add(saleTransaction);
                 await _context.SaveChangesAsync();
 
                 // Commit transaction
 
                 if (stock.Quantity == 0)
-                {   
+                {
                     stock.PurchasePrice = 0;
 
                     //_context.Stocks.Remove(stock);
@@ -243,7 +268,7 @@ namespace MyBackendApp.Controllers
 
                 return Ok(new
                 {
-                    message = "Satış işlemi başarıyla tamamlandı.",
+                    message = "The sales transaction has been completed successfully.",
                     saleDetails = new
                     {
                         Quantity = sellStockDto.Quantity,
@@ -259,8 +284,8 @@ namespace MyBackendApp.Controllers
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError($"Satış işlemi sırasında hata oluştu: {ex.Message}");
-                return StatusCode(500, "Satış işlemi sırasında bir hata oluştu.");
+                _logger.LogError($"An error occurred during the sales process:{ex.Message}");
+                return StatusCode(500, "An error occurred during the sales transaction.");
             }
         }
 
@@ -274,7 +299,7 @@ namespace MyBackendApp.Controllers
             var userId = GetUserIdFromToken();
             if (userId == null)
             {
-                return Unauthorized("Geçersiz kullanıcı kimliği.");
+                return Unauthorized("Invalid user identity.");
             }
 
             // Find the stock for the given user and ID
@@ -282,7 +307,7 @@ namespace MyBackendApp.Controllers
 
             if (stock == null)
             {
-                return NotFound("Hisse bulunamadı.");
+                return NotFound("Stock not found.");
             }
 
             // Log deletion in the DeletedStocks table
@@ -294,15 +319,15 @@ namespace MyBackendApp.Controllers
                 Symbol = stock.Symbol,
                 Name = stock.Name
             };
-            _context.DeletedStocks.Add(deletedStock);
+            _context.DeletedStocks!.Add(deletedStock);
 
             // Remove the stock from the Stocks table
             _context.Stocks.Remove(stock);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation($"Hisse başarıyla silindi. Hisse ID: {stock.Id}, Kullanıcı ID: {userId}");
+            _logger.LogInformation($"The stock has been successfully deleted. Stock ID: {stock.Id}, User ID: {userId}");
 
-            return Ok(new { message = "Hisse başarıyla silindi." });
+            return Ok(new { message = "The stock has been successfully deleted." });
         }
         #endregion
 
@@ -318,13 +343,13 @@ namespace MyBackendApp.Controllers
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userIdClaim))
             {
-                _logger.LogError("Token'da kullanıcı kimliği bulunamadı.");
+                _logger.LogError("No user ID found in token.");
                 return null;
             }
 
             if (!int.TryParse(userIdClaim, out int userId))
             {
-                _logger.LogError($"Token'daki kullanıcı kimliği geçersiz: {userIdClaim}");
+                _logger.LogError($"User ID in token is invalid: {userIdClaim}");
                 return null;
             }
 
